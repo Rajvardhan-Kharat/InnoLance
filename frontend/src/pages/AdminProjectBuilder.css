@@ -1,0 +1,223 @@
+.admin-project-builder h1 {
+  margin-bottom: 8px;
+}
+
+.builder-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.builder-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.builder-subtitle strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.builder-subtitle .dot {
+  opacity: 0.6;
+}
+
+.builder-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.builder-card h2 {
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.builder-error {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: var(--error);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.rfp-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  max-height: 260px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.builder-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.budget-chip {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.budget-chip.over {
+  border-color: rgba(234, 179, 8, 0.6);
+  color: var(--warning);
+  background: rgba(234, 179, 8, 0.12);
+}
+
+.task-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  background: var(--surface);
+  margin-bottom: 12px;
+}
+
+.task-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.task-card h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.task-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+.field label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* Button styles (local, to avoid depending on global button classes) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.btn-primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+}
+
+.btn-sm {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.builder-sticky {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0 0;
+}
+
+.builder-sticky-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.sticky-meta {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.warn {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+@media (max-width: 820px) {
+  .builder-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .task-grid {
+    grid-template-columns: 1fr;
+  }
+  .builder-sticky-inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+

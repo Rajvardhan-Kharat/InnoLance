@@ -1,0 +1,58 @@
+.my-projects h1 {
+  margin-bottom: 4px;
+}
+
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.my-project-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.my-project-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.my-project-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.my-project-title:hover {
+  color: var(--accent);
+}
+
+.my-project-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.my-project-meta .budget {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-muted);
+}
+
+.empty-state p {
+  margin-bottom: 16px;
+}

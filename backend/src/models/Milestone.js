@@ -1,0 +1,19 @@
+import mongoose from 'mongoose';
+
+const milestoneSchema = new mongoose.Schema(
+  {
+    project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
+    title: { type: String, required: true },
+    description: { type: String },
+    amount: { type: Number, required: true },
+    dueDate: { type: Date },
+    status: { type: String, enum: ['pending', 'in_review', 'released', 'disputed'], default: 'pending' },
+    order: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+
+milestoneSchema.index({ project: 1, order: 1 });
+
+const Milestone = mongoose.model('Milestone', milestoneSchema);
+export default Milestone;

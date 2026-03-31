@@ -1,0 +1,22 @@
+.cms-page {
+  max-width: 720px;
+}
+
+.cms-page h1 {
+  margin-bottom: 24px;
+}
+
+.cms-content {
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+.cms-content p {
+  margin-bottom: 16px;
+}
+
+.cms-not-found {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-muted);
+}

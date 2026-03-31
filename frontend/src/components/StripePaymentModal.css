@@ -1,0 +1,135 @@
+.spm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 1000;
+}
+
+.spm-modal {
+  width: 100%;
+  max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+
+.spm-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 16px 10px;
+}
+
+.spm-head h3 {
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.spm-sub {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.spm-x {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.spm-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+
+.spm-mode {
+  text-align: left;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.spm-mode.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  background: var(--surface);
+}
+
+.spm-mode:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.spm-mode-title {
+  font-weight: 800;
+}
+
+.spm-mode-desc {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.spm-panel {
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.spm-form {
+  display: grid;
+  gap: 12px;
+}
+
+.spm-row {
+  display: grid;
+  gap: 8px;
+}
+
+.spm-label {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.spm-card {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.spm-error {
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 0.92rem;
+}
+
+.spm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.spm-footnote {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+

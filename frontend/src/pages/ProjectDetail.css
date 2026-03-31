@@ -1,0 +1,308 @@
+.project-detail {
+  max-width: 900px;
+}
+
+.project-header {
+  margin-bottom: 28px;
+}
+
+.project-header h1 {
+  font-size: 1.75rem;
+  margin-bottom: 8px;
+}
+
+.project-header-meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.project-header-meta .category {
+  color: var(--text-muted);
+}
+
+.project-header-meta .budget {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.status {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.status-open { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+.status-in-progress { background: rgba(99, 102, 241, 0.2); color: var(--accent); }
+.status-in-review { background: rgba(234, 179, 8, 0.2); color: var(--warning); }
+.status-released { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+.status-completed { background: var(--surface-hover); color: var(--text-muted); }
+
+.project-body {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 32px;
+}
+
+@media (max-width: 768px) {
+  .project-body { grid-template-columns: 1fr; }
+}
+
+.project-main section {
+  margin-bottom: 24px;
+}
+
+.project-main h2 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+}
+
+.project-main p {
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.client-info .company {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.project-sidebar .sidebar-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  position: sticky;
+  top: 80px;
+}
+
+.sidebar-card h3 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
+.sidebar-card label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.sidebar-card input,
+.sidebar-card textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.sidebar-card textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+.proposals-list {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.proposals-list h2 {
+  margin-bottom: 16px;
+}
+
+.proposal-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.proposal-freelancer .headline {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.cover-letter {
+  margin: 12px 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.proposal-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.proposal-meta strong {
+  color: var(--accent);
+}
+
+.text-muted {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.milestone-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.milestone-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.milestone-amount {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.milestone-status {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.milestone-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 8px 0;
+}
+
+.milestone-actions {
+  margin-top: 8px;
+}
+
+.milestone-form input,
+.milestone-form textarea {
+  width: 100%;
+  max-width: 320px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.milestone-form div {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.suggested-freelancer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+}
+
+.suggested-freelancer:last-child {
+  border-bottom: none;
+}
+
+.suggested-freelancer .headline {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.avatar.small {
+  width: 32px;
+  height: 32px;
+  font-size: 0.8rem;
+}
+
+.time-entry-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.time-entry-form input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.time-entry-form input[type="number"] {
+  width: 100px;
+}
+
+.time-entries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.time-entry-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.time-entry-item .desc {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}

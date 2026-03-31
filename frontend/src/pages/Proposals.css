@@ -1,0 +1,86 @@
+.proposals-page h1 {
+  margin-bottom: 4px;
+}
+
+.proposals-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.proposals-toolbar button {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.proposals-toolbar button.active,
+.proposals-toolbar button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.proposals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.proposal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.proposal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.proposal-project {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.proposal-status {
+  font-size: 0.8rem;
+  text-transform: capitalize;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.proposal-status.status-pending { background: rgba(234, 179, 8, 0.2); color: var(--warning); }
+.proposal-status.status-accepted { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+.proposal-status.status-rejected { background: var(--surface-hover); color: var(--text-muted); }
+
+.proposal-freelancer {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.proposal-cover {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.proposal-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.proposal-actions .bid {
+  color: var(--accent);
+  font-weight: 600;
+}

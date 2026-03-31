@@ -1,0 +1,130 @@
+.wallet-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.wallet-balance {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px 16px;
+  min-width: 260px;
+}
+
+.wallet-balance-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.wallet-balance-value {
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
+}
+
+.wallet-msg {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+
+.wallet-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 900px) {
+  .wallet-hero {
+    flex-direction: column;
+  }
+  .wallet-balance {
+    width: 100%;
+  }
+  .wallet-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wallet-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.wallet-card h2 {
+  font-size: 1.05rem;
+  margin-bottom: 10px;
+}
+
+.wallet-form {
+  display: grid;
+  gap: 10px;
+}
+
+.wallet-form input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.wallet-txns {
+  margin-top: 10px;
+}
+
+.wallet-txns-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.txns {
+  display: grid;
+  gap: 10px;
+}
+
+.txn {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.txn-title {
+  font-weight: 900;
+}
+
+.txn-sub {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin-top: 2px;
+}
+
+.txn-amt {
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.txn-amt.credit {
+  color: var(--success);
+}
+
+.txn-amt.debit {
+  color: #b91c1c;
+}
+
