@@ -21,6 +21,7 @@ import walletRoutes from './routes/wallet.js';
 import enterpriseRfpRoutes from './routes/enterpriseRfp.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { startListener } from './scripts/emailListener.js';
 
 dotenv.config();
 
@@ -61,6 +62,14 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/freelance
 const PORT = process.env.PORT || 5000;
 const httpServer = http.createServer(app);
 initSocket(httpServer);
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  
+  if (process.env.IMAP_PASSWORD && process.env.IMAP_PASSWORD !== 'your_16_char_app_password') {
+    startListener().catch(err => console.error('Failed to start email listener:', err));
+  } else {
+    console.warn('\n⚠️ IMAP listener not started due to missing IMAP_PASSWORD in .env ⚠️\n');
+  }
+});
 
 export default app;

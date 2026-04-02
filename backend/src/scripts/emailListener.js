@@ -26,8 +26,7 @@ process.on('uncaughtException', (err) => {
 });
 
 if (!config.auth.pass || config.auth.pass === 'your_16_char_app_password') {
-  console.error('ERROR: You must define a real IMAP_PASSWORD (Gmail App Password) in your .env file to run this listener.');
-  process.exit(1);
+  console.error('\n⚠️ WARNING: IMAP_PASSWORD is not set in .env. Email listener will NOT start. ⚠️\n');
 }
 
 const client = new ImapFlow(config);
@@ -115,8 +114,8 @@ async function processUnreadEmails() {
         });
         console.log(`Success! Created EnterpriseProject ID: ${res.data.project._id}`);
         
-        // Mark as seen so we don't process it again
-        await client.messageFlagsAdd({ uid: message.uid }, ['\\Seen']);
+        // Mark as seen so we don't process it again using proper imapflow syntax
+        await client.messageFlagsAdd(message.uid, ['\\Seen'], { uid: true });
         console.log('Email marked as read.');
       } catch (postErr) {
         console.error('Failed to post webhook. Is the backend running on 5003?', postErr.message);
@@ -128,7 +127,14 @@ async function processUnreadEmails() {
   }
 }
 
-startListener().catch((err) => {
-  console.error('Failed to start listener:', err);
-  process.exit(1);
-});
+export { startListener };
+
+// If run directly (not imported)
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  if (config.auth.pass && config.auth.pass !== 'your_16_char_app_password') {
+    startListener().catch((err) => {
+      console.error('Failed to start listener:', err);
+      process.exit(1);
+    });
+  }
+}

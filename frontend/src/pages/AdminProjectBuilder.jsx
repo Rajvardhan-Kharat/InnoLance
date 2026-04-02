@@ -30,6 +30,7 @@ export default function AdminProjectBuilder() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
   const [project, setProject] = useState(null);
 
@@ -118,6 +119,28 @@ export default function AdminProjectBuilder() {
     return '';
   };
 
+  const handleGenerateFromAI = async () => {
+    if (!project?.originalRfpText) {
+      alert('No RFP text available to analyze.');
+      return;
+    }
+    setIsGenerating(true);
+    setError('');
+    try {
+      const { data } = await api.post(`/admin/enterprise-projects/${projectId}/suggest-microjobs`);
+      if (data.suggestions && data.suggestions.length > 0) {
+        setTasks(data.suggestions);
+      } else {
+        alert('AI did not return any valid tasks.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Failed to auto-generate from AI. Is GEMINI_API_KEY set?');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleBulkPublish = async () => {
     if (project?.status !== 'Pending Breakdown') {
       alert('This project has already been broken down and published to the marketplace! You cannot publish the same jobs twice.');
@@ -157,6 +180,7 @@ export default function AdminProjectBuilder() {
         // ignore
       }
 
+      setProject(prev => prev ? { ...prev, status: 'In Progress' } : null);
       alert('Published successfully.');
     } catch (err) {
       setError(err.response?.data?.message || 'Publish failed (endpoint may be missing).');
@@ -222,8 +246,24 @@ export default function AdminProjectBuilder() {
       )}
 
       <div className="builder-card">
-        <div className="builder-card-head">
-          <h2>Micro-Deliverables</h2>
+        <div className="builder-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <h2>Micro-Deliverables</h2>
+            <button 
+              type="button" 
+              className="btn btn-secondary btn-sm" 
+              onClick={handleGenerateFromAI}
+              disabled={isGenerating || (project && project.status !== 'Pending Breakdown')}
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed, #db2777)',
+                color: 'white',
+                border: 'none',
+                boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.3)',
+              }}
+            >
+              {isGenerating ? '✨ Generating...' : '✨ Auto-Generate with AI'}
+            </button>
+          </div>
           <div className={`budget-chip ${overBudget ? 'over' : ''}`}>
             Allocated: {totalAllocated} / {Number.isFinite(totalBudget) ? totalBudget : 0}
           </div>
@@ -299,9 +339,9 @@ export default function AdminProjectBuilder() {
             type="button"
             className={`btn btn-primary ${project?.status !== 'Pending Breakdown' ? 'btn-disabled' : ''}`}
             onClick={handleBulkPublish}
-            disabled={saving}
+            disabled={saving || (project && project.status !== 'Pending Breakdown')}
           >
-            {saving ? 'Publishing...' : (project?.status !== 'Pending Breakdown' ? 'Already Published (Click to details)' : 'Save & Publish to Marketplace')}
+            {saving ? 'Publishing...' : (project?.status !== 'Pending Breakdown' ? 'Already Published' : 'Save & Publish to Marketplace')}
           </button>
         </div>
       </div>

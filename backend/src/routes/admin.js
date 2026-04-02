@@ -8,6 +8,7 @@ import MicroJob from '../models/MicroJob.js';
 import PlatformSettings from '../models/PlatformSettings.js';
 import CmsPage from '../models/CmsPage.js';
 import { protect, restrictTo } from '../middleware/auth.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = express.Router();
 
@@ -180,6 +181,67 @@ router.get('/enterprise-projects/:id', async (req, res) => {
     res.json({ project });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// Auto-generate microjobs from PRD text via Gemini AI
+router.post('/enterprise-projects/:id/suggest-microjobs', async (req, res) => {
+  try {
+    const project = await EnterpriseProject.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: 'EnterpriseProject not found' });
+    if (!project.originalRfpText) {
+      return res.status(400).json({ message: 'No RFP text available to analyze' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ message: 'GEMINI_API_KEY not configured on server' });
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    const prompt = `You are an expert technical project manager and software architect.
+I have a Product Requirements Document (PRD) from a client for a new project. 
+The total budget for this project is roughly ${project.overallTotalBudget || 'unknown'}.
+
+I need to break this large project down into a series of smaller, distinct "micro-deliverables" to be posted on a freelancing platform.
+Analyze the following PRD text and generate these micro-deliverables. 
+For each, provide:
+- A descriptive title
+- A comprehensive description of the work, constraints, and acceptance criteria
+- A comma-separated list of required technologies/frameworks
+- An estimated allocated budget (ensure the sum roughly matches the total budget, but do not exceed it).
+
+Return ONLY a valid JSON array of objects with the exact keys: 'title', 'description', 'requiredTechStackText', 'allocatedBudget'. No markdown formatting blocks like \`\`\`json, just the raw JSON text.
+
+PRD TEXT:
+${project.originalRfpText.slice(0, 30000)}`;
+
+    const result = await model.generateContent(prompt);
+    let text = result.response.text().trim();
+
+    // Clean up potential markdown blocks if the AI still outputs them despite instructions
+    if (text.startsWith('\`\`\`json')) {
+      text = text.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
+    } else if (text.startsWith('\`\`\`')) {
+      text = text.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
+    }
+
+    const suggestions = JSON.parse(text);
+    
+    // Ensure all attributes exist safely
+    const normalized = suggestions.map(s => ({
+      title: s.title || 'Untitled Task',
+      description: s.description || '',
+      requiredTechStackText: s.requiredTechStackText || '',
+      allocatedBudget: Number(s.allocatedBudget) || 0
+    }));
+
+    res.json({ suggestions: normalized });
+  } catch (err) {
+    console.error('Gemini Suggest Error:', err);
+    res.status(500).json({ message: err.message || 'Failed to generate suggestions' });
   }
 });
 
