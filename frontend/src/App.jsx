@@ -14,6 +14,7 @@ import FreelancerProfile from './pages/FreelancerProfile';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminProjectBuilder from './pages/AdminProjectBuilder';
 import AdminAssemblyDashboard from './pages/AdminAssemblyDashboard';
+import AdminAnalyticsDashboard from './pages/AdminAnalyticsDashboard';
 import CmsPage from './pages/CmsPage';
 import Wallet from './pages/Wallet';
 import { useAuth } from './context/AuthContext';
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="settings" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="wallet" element={<PrivateRoute><Wallet /></PrivateRoute>} />
         <Route path="admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+        <Route path="admin/analytics" element={<AdminRoute><AdminAnalyticsDashboard /></AdminRoute>} />
         <Route path="admin/project-builder/:projectId" element={<AdminRoute><AdminProjectBuilder /></AdminRoute>} />
         <Route path="admin/assembly/:projectId" element={<AdminRoute><AdminAssemblyDashboard /></AdminRoute>} />
       </Route>

@@ -9,6 +9,7 @@ import { protect, restrictTo } from '../middleware/auth.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { evaluateProposal } from '../services/aiScoring.js';
 
 const router = express.Router();
 
@@ -111,6 +112,13 @@ router.post(
         size: req.file.size,
       } : undefined;
 
+      // AI Proposal Scoring
+      const { score, feedback } = await evaluateProposal(
+        proj.title,
+        proj.description || '',
+        coverLetter
+      );
+
       const proposal = await Proposal.create({
         project,
         freelancer: req.user._id,
@@ -119,6 +127,8 @@ router.post(
         estimatedDays: estimatedDays ? Number(estimatedDays) : undefined,
         resume,
         attachments: [],
+        aiScore: score,
+        aiFeedback: feedback,
       });
       await Notification.create({
         user: proj.client,

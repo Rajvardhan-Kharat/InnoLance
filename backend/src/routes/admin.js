@@ -194,6 +194,7 @@ router.post('/enterprise-projects/:id/suggest-microjobs', async (req, res) => {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
+    
     if (!apiKey) {
       return res.status(500).json({ message: 'GEMINI_API_KEY not configured on server' });
     }
@@ -405,6 +406,47 @@ router.delete('/enterprise-projects/:id', async (req, res) => {
     await MicroJob.deleteMany({ parentProject: ep._id });
     
     res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// -----------------------------
+// Analytics Dashboard
+// -----------------------------
+router.get('/analytics/financial', async (req, res) => {
+  try {
+    // Total Escrow Balance
+    const escrowAgg = await Payment.aggregate([
+      { $match: { status: 'held' } },
+      { $group: { _id: null, totalEscrow: { $sum: '$amount' } } }
+    ]);
+    const totalEscrow = escrowAgg[0]?.totalEscrow || 0;
+
+    // Platform Revenue Estimation: 100 INR per accepted proposal (50 client + 50 freelancer)
+    const acceptedProposalsCount = await Proposal.countDocuments({ status: { $in: ['accepted'] } });
+    const completedProjectsCount = await Project.countDocuments({ status: 'completed' });
+    // In our system, accepted projects become in_progress or completed.
+    // Let's accurately count Projects where freelancer is set:
+    const hiredProjectsCount = await Project.countDocuments({ freelancer: { $exists: true } });
+    const totalRevenue = hiredProjectsCount * 100;
+
+    // Freelancer Conversion Rate
+    const totalFreelancers = await User.countDocuments({ role: 'freelancer' });
+    const hiredFreelancersCount = await Project.distinct('freelancer', { freelancer: { $exists: true } });
+
+    res.json({
+      revenue: totalRevenue,
+      escrow: totalEscrow,
+      freelancers: {
+        total: totalFreelancers,
+        hired: hiredFreelancersCount.length
+      },
+      projects: {
+        hired: hiredProjectsCount,
+        completed: completedProjectsCount
+      }
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

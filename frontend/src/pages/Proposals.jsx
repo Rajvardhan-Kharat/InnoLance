@@ -87,9 +87,16 @@ export default function Proposals() {
                 <span className={`proposal-status status-${prop.status}`}>{prop.status}</span>
               </div>
               {(user?.role === 'client' || user?.role === 'admin') && (
-                <Link to={`/profile/${prop.freelancer?._id}`} className="proposal-freelancer">
-                  {prop.freelancer?.firstName} {prop.freelancer?.lastName} — {prop.freelancer?.headline}
-                </Link>
+                <>
+                  <Link to={`/profile/${prop.freelancer?._id}`} className="proposal-freelancer">
+                    {prop.freelancer?.firstName} {prop.freelancer?.lastName} — {prop.freelancer?.headline}
+                  </Link>
+                  {prop.aiScore && (
+                    <div style={{ margin: '8px 0', fontSize: '0.9em', color: '#2b6cb0', fontWeight: '500' }}>
+                      🤖 AI Fit Score: {prop.aiScore}/100
+                    </div>
+                  )}
+                </>
               )}
               <p className="proposal-cover">{prop.coverLetter?.slice(0, 200)}...</p>
               <div className="proposal-actions">

@@ -26,7 +26,12 @@ export default function Navbar() {
               <Link to="/proposals">Proposals</Link>
               <Link to="/messages">Messages</Link>
               <Notifications />
-              {user.role === 'admin' && <Link to="/admin">Admin</Link>}
+              {user.role === 'admin' && (
+                <>
+                  <Link to="/admin">Admin</Link>
+                  <Link to="/admin/analytics">Analytics</Link>
+                </>
+              )}
               <ProfileMenu />
             </>
           ) : (

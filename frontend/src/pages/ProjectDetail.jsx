@@ -515,6 +515,12 @@ export default function ProjectDetail() {
                 </Link>
                 <span className="headline">{prop.freelancer.headline}</span>
               </div>
+              {prop.aiScore ? (
+                <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f0f4f8', borderRadius: '4px', borderLeft: '4px solid #3182ce' }}>
+                  <strong>🤖 AI Fit Score: {prop.aiScore}/100</strong>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', color: '#4a5568' }}>{prop.aiFeedback}</p>
+                </div>
+              ) : null}
               <p className="cover-letter">{prop.coverLetter}</p>
               <div className="proposal-meta">
                 <strong>₹{prop.bidAmount}</strong>

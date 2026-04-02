@@ -15,6 +15,8 @@ const proposalSchema = new mongoose.Schema(
       size: Number,
     },
     attachments: [{ url: String, name: String }],
+    aiScore: { type: Number, min: 1, max: 100 },
+    aiFeedback: { type: String },
   },
   { timestamps: true }
 );
