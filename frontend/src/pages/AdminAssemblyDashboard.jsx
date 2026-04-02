@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import api from '../utils/api';
 import './AdminAssemblyDashboard.css';
 
@@ -12,6 +13,8 @@ function pct(approved, total) {
   return Math.round((approved / total) * 100);
 }
 
+const KANBAN_COLUMNS = ['Open', 'Assigned', 'Submitted', 'Approved'];
+
 export default function AdminAssemblyDashboard() {
   const { projectId } = useParams();
 
@@ -19,8 +22,26 @@ export default function AdminAssemblyDashboard() {
   const [updatingId, setUpdatingId] = useState('');
   const [error, setError] = useState('');
   const [project, setProject] = useState(null);
+  
+  // Kanban local state
+  const [columnsData, setColumnsData] = useState({
+    Open: [],
+    Assigned: [],
+    Submitted: [],
+    Approved: [],
+  });
 
   const microJobs = useMemo(() => safeArray(project?.microJobs), [project]);
+
+  // Sync MongoDB state to local Kanban Board state
+  useEffect(() => {
+    const cols = { Open: [], Assigned: [], Submitted: [], Approved: [] };
+    microJobs.forEach(job => {
+      const status = KANBAN_COLUMNS.includes(job.status) ? job.status : 'Open';
+      cols[status].push(job);
+    });
+    setColumnsData(cols);
+  }, [microJobs]);
 
   const stats = useMemo(() => {
     const total = microJobs.length;
@@ -43,7 +64,7 @@ export default function AdminAssemblyDashboard() {
         setProject(data.project || data.enterpriseProject || data);
       })
       .catch((err) => {
-        setError(err.response?.data?.message || 'Failed to load enterprise project (endpoint may be missing).');
+        setError(err.response?.data?.message || 'Failed to load enterprise project.');
       })
       .finally(() => setLoading(false));
   };
@@ -52,26 +73,6 @@ export default function AdminAssemblyDashboard() {
     fetchProject();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
-
-  const approveJob = async (jobId) => {
-    setUpdatingId(jobId);
-    setError('');
-    try {
-      await api.patch(`/admin/microjobs/${jobId}/status`, { status: 'Approved' });
-
-      // Optimistic UI update
-      setProject((prev) => {
-        if (!prev) return prev;
-        const next = { ...prev };
-        next.microJobs = safeArray(prev.microJobs).map((j) => (j?._id === jobId ? { ...j, status: 'Approved' } : j));
-        return next;
-      });
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update status (endpoint may be missing).');
-    } finally {
-      setUpdatingId('');
-    }
-  };
 
   const markComplete = async () => {
     if (!window.confirm('Are you sure you want to finalize this project as Completed?')) return;
@@ -84,6 +85,37 @@ export default function AdminAssemblyDashboard() {
       setError(err.response?.data?.message || 'Failed to complete project.');
     } finally {
       setUpdatingId('');
+    }
+  };
+
+  const onDragEnd = async (result) => {
+    const { source, destination, draggableId } = result;
+
+    if (!destination) return;
+    if (source.droppableId === destination.droppableId) return;
+
+    const newStatus = destination.droppableId;
+
+    // Optimistic Update
+    const sourceCol = Array.from(columnsData[source.droppableId]);
+    const destCol = Array.from(columnsData[destination.droppableId]);
+    const [movedTask] = sourceCol.splice(source.index, 1);
+    
+    movedTask.status = newStatus;
+    destCol.splice(destination.index, 0, movedTask);
+
+    setColumnsData({
+      ...columnsData,
+      [source.droppableId]: sourceCol,
+      [destination.droppableId]: destCol,
+    });
+
+    try {
+      await api.patch(`/admin/microjobs/${draggableId}/status`, { status: newStatus });
+      fetchProject(); // Refetch to get any side effects (like Parent Project state 'Assembling')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update micro-job status.');
+      fetchProject(); // Revert back
     }
   };
 
@@ -100,7 +132,7 @@ export default function AdminAssemblyDashboard() {
     <div className="admin-assembly">
       <div className="assembly-head">
         <div>
-          <h1>Assembly Dashboard</h1>
+          <h1>Assembly Dashboard (Kanban Tracker)</h1>
           <div className="assembly-subtitle">
             {project?.clientReference ? (
               <span><strong>Client Ref:</strong> {project.clientReference}</span>
@@ -134,92 +166,91 @@ export default function AdminAssemblyDashboard() {
       <div className="assembly-card">
         <div className="progress-top">
           <div className="progress-meta">
-            <div className="progress-title">Overall progress</div>
-            <div className="progress-count">
-              {stats.approved} out of {stats.total} tasks Approved ({stats.percent}%)
-            </div>
+            <div className="progress-title">Overall Integration Progress</div>
           </div>
           <button type="button" className="btn btn-ghost btn-sm" onClick={fetchProject}>
-            Refresh
+            Refresh Sync
           </button>
         </div>
 
         <div className="progress-bar" role="progressbar" aria-valuenow={stats.percent} aria-valuemin={0} aria-valuemax={100}>
           <div className="progress-bar-fill" style={{ width: `${stats.percent}%` }} />
         </div>
-
-        {stats.submitted > 0 && (
-          <div className="progress-hint">
-            {stats.submitted} task{stats.submitted === 1 ? '' : 's'} awaiting review (Submitted).
-          </div>
-        )}
+        <div className="progress-hint" style={{ marginTop: '10px' }}>
+          {stats.approved} out of {stats.total} micro-tasks fully Approved ({stats.percent}%).
+        </div>
       </div>
 
-      <div className="assembly-card">
-        <h2>MicroJobs</h2>
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Job Title</th>
-                <th>Budget</th>
-                <th>Status</th>
-                <th>Hired Freelancer</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {microJobs.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="muted">No micro-jobs linked yet.</td>
-                </tr>
-              ) : (
-                microJobs.map((j) => {
-                  const hired = j?.hiredUser;
-                  const hiredLabel = hired
-                    ? `${hired.firstName || ''} ${hired.lastName || ''}`.trim() || hired.email || 'Assigned'
-                    : 'Unassigned';
+      <div className="kanban-wrapper" style={{ marginTop: '30px' }}>
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="kanban-board" style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '20px' }}>
+            {KANBAN_COLUMNS.map((columnId) => (
+              <Droppable key={columnId} droppableId={columnId}>
+                {(provided, snapshot) => (
+                  <div
+                    className="kanban-column"
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    style={{
+                      background: snapshot.isDraggingOver ? '#e2e8f0' : '#f7fafc',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      width: '300px',
+                      minHeight: '400px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                    }}
+                  >
+                    <h3 style={{ margin: 0, paddingBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                      {columnId} <span style={{ background: '#edf2f7', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8em' }}>{columnsData[columnId].length}</span>
+                    </h3>
+                    
+                    {columnsData[columnId].map((job, index) => {
+                       const hired = job?.hiredUser;
+                       const hiredLabel = hired
+                         ? `${hired.firstName || ''} ${hired.lastName || ''}`.trim() || hired.email || 'Assigned'
+                         : 'Unassigned';
 
-                  const canApprove = j?.status === 'Submitted';
-
-                  return (
-                    <tr key={j._id}>
-                      <td className="title-col">{j.title || '—'}</td>
-                      <td>{Number(j.allocatedBudget || 0)}</td>
-                      <td>
-                        <span className={`status-pill status-${String(j.status || '').toLowerCase()}`}>
-                          {j.status || '—'}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="freelancer-cell">
-                          <div className="freelancer-name">{hiredLabel}</div>
-                          {hired?.email && <div className="freelancer-email">{hired.email}</div>}
-                        </div>
-                      </td>
-                      <td>
-                        {canApprove ? (
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            disabled={updatingId === j._id}
-                            onClick={() => approveJob(j._id)}
-                          >
-                            {updatingId === j._id ? 'Approving...' : 'Approve'}
-                          </button>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                      return (
+                        <Draggable key={job._id} draggableId={job._id} index={index}>
+                          {(provided, snapshot) => (
+                            <div
+                              className="kanban-card"
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              style={{
+                                userSelect: 'none',
+                                padding: '16px',
+                                margin: '0 0 8px 0',
+                                backgroundColor: snapshot.isDragging ? '#ebf8ff' : '#ffffff',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '6px',
+                                boxShadow: snapshot.isDragging ? '0 5px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.05)',
+                                ...provided.draggableProps.style,
+                              }}
+                            >
+                              <strong style={{ display: 'block', marginBottom: '8px', color: '#2d3748' }}>{job.title}</strong>
+                              <div style={{ fontSize: '0.85em', color: '#718096', marginBottom: '4px' }}>
+                                💰 ₹{Number(job.allocatedBudget || 0)}
+                              </div>
+                              <div style={{ fontSize: '0.85em', color: '#718096' }}>
+                                👤 {hiredLabel}
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      );
+                    })}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            ))}
+          </div>
+        </DragDropContext>
       </div>
     </div>
   );
 }
-
