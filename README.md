@@ -1,4 +1,4 @@
-# OwnWork (InnoLance) - Auto-AI Freelancing Platform
+# InnoLance - Auto-AI Freelancing Platform
 
 Welcome to the **OwnWork** repository! This project is a modern, feature-rich freelancing and project management platform built to streamline the entire lifecycle of enterprise client projects. Acting under the company name **InnoLance**, this platform bridges the gap between massive Enterprise RFPs (Request for Proposals) and individual freelancers by leveraging AI and automation.
 
