@@ -4,6 +4,8 @@ import Project from '../models/Project.js';
 import Proposal from '../models/Proposal.js';
 import Notification from '../models/Notification.js';
 import { protect, restrictTo } from '../middleware/auth.js';
+import ProjectAssessment from '../models/ProjectAssessment.js';
+import ProjectAssessmentAttempt from '../models/ProjectAssessmentAttempt.js';
 
 const router = express.Router();
 
@@ -124,6 +126,9 @@ router.post(
     body('skills').optional().isArray(),
     body('weeklyMinMinutes').optional().isInt({ min: 0 }),
     body('weeklyMaxMinutes').optional().isInt({ min: 0 }),
+
+    body('assessmentEnabled').optional().isBoolean(),
+    body('assessmentQuestions').optional().isArray(),
   ],
   async (req, res) => {
     try {
@@ -134,7 +139,51 @@ router.post(
           return res.status(400).json({ message: 'weeklyMinMinutes cannot be greater than weeklyMaxMinutes' });
         }
       }
-      const project = await Project.create({ ...req.body, client: req.user._id });
+      const {
+        assessmentEnabled,
+        assessmentQuestions,
+        ...projectBody
+      } = req.body;
+
+      const project = await Project.create({ ...projectBody, client: req.user._id });
+
+      // Optional: create assessment definition (questions + correct answers).
+      if (assessmentEnabled === true) {
+        const questions = Array.isArray(assessmentQuestions) ? assessmentQuestions : [];
+        if (questions.length === 0) {
+          return res.status(400).json({ message: 'assessmentQuestions must be provided when assessmentEnabled is true' });
+        }
+
+        // Validate each question quickly (assumes 4-option MCQ).
+        const normalized = [];
+        for (let i = 0; i < questions.length; i++) {
+          const q = questions[i] || {};
+          const questionText = String(q.questionText || '').trim();
+          const options = Array.isArray(q.options) ? q.options.map((o) => String(o).trim()) : [];
+          const correctOptionIndex = Number(q.correctOptionIndex);
+          if (!questionText) return res.status(400).json({ message: `Invalid questionText at index ${i}` });
+          if (options.length !== 4 || options.some((o) => !o)) return res.status(400).json({ message: `Invalid options at index ${i}` });
+          if (!Number.isInteger(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex > 3) {
+            return res.status(400).json({ message: `Invalid correctOptionIndex at index ${i}` });
+          }
+          normalized.push({ questionText, options, correctOptionIndex });
+        }
+
+        const totalTimeSeconds = normalized.length * 120; // 2 minutes each
+        const assessment = await ProjectAssessment.create({
+          project: project._id,
+          questions: normalized,
+          totalTimeSeconds,
+          createdBy: req.user._id,
+        });
+
+        project.assessmentEnabled = true;
+        project.assessment = assessment._id;
+        await project.save();
+
+        // No attempts yet on creation; but keep it safe.
+        await ProjectAssessmentAttempt.deleteMany({ projectAssessment: assessment._id }).catch(() => {});
+      }
       const populated = await Project.findById(project._id).populate('client', 'firstName lastName companyName avatar');
       res.status(201).json({ project: populated });
     } catch (err) {

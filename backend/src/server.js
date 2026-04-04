@@ -19,6 +19,8 @@ import timeEntryRoutes from './routes/timeEntries.js';
 import adminRoutes from './routes/admin.js';
 import walletRoutes from './routes/wallet.js';
 import enterpriseRfpRoutes from './routes/enterpriseRfp.js';
+import quizzesRoutes from './routes/quizzes.js';
+import projectAssessmentRoutes from './routes/projectAssessments.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { startListener } from './scripts/emailListener.js';
@@ -47,6 +49,8 @@ app.use('/api/time-entries', timeEntryRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/enterprise-rfp', enterpriseRfpRoutes);
+app.use('/api/quizzes', quizzesRoutes);
+app.use('/api/project-assessments', projectAssessmentRoutes);
 
 // Serve uploaded files
 const __filename = fileURLToPath(import.meta.url);

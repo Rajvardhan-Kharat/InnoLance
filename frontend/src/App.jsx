@@ -17,6 +17,7 @@ import AdminAssemblyDashboard from './pages/AdminAssemblyDashboard';
 import AdminAnalyticsDashboard from './pages/AdminAnalyticsDashboard';
 import CmsPage from './pages/CmsPage';
 import Wallet from './pages/Wallet';
+import ProjectAssessment from './pages/ProjectAssessment';
 import { useAuth } from './context/AuthContext';
 
 function PrivateRoute({ children }) {
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="register" element={<PublicOnly><Register /></PublicOnly>} />
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:id" element={<ProjectDetail />} />
+        <Route path="projects/:id/assessment" element={<PrivateRoute><ProjectAssessment /></PrivateRoute>} />
         <Route path="profile/:id" element={<FreelancerProfile />} />
         <Route path="page/:slug" element={<CmsPage />} />
         <Route path="dashboard" element={<PrivateRoute><MyProjects /></PrivateRoute>} />

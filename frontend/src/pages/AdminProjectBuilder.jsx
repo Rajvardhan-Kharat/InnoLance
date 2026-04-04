@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../utils/api';
+import AssessmentBuilder from '../components/AssessmentBuilder';
 import './AdminProjectBuilder.css';
 
 const emptyTask = () => ({
@@ -8,6 +9,9 @@ const emptyTask = () => ({
   description: '',
   requiredTechStackText: '',
   allocatedBudget: '',
+  quizEnabled: false,
+  quizSelectedQuestions: [],
+  quizQuestionCount: 0,
 });
 
 function parseTechStack(text) {
@@ -36,10 +40,13 @@ export default function AdminProjectBuilder() {
 
   const [tasks, setTasks] = useState([emptyTask()]);
   const [editableBudget, setEditableBudget] = useState(0);
+  const [copyQuizFromFirst, setCopyQuizFromFirst] = useState(false);
 
   const totalAllocated = useMemo(() => sumBudgets(tasks), [tasks]);
   const totalBudget = Number(editableBudget) || 0;
   const overBudget = Number.isFinite(totalBudget) && totalAllocated > totalBudget;
+
+  const firstQuizTaskIndex = useMemo(() => tasks.findIndex((t) => t?.quizEnabled), [tasks]);
 
   useEffect(() => {
     let mounted = true;
@@ -115,6 +122,15 @@ export default function AdminProjectBuilder() {
       if (tech.length === 0) return `Task ${i + 1}: Required Tech Stack is required.`;
       const b = Number(t.allocatedBudget);
       if (!Number.isFinite(b) || b < 0) return `Task ${i + 1}: Allocated Budget must be a valid number >= 0.`;
+
+      if (t.quizEnabled) {
+        const isShared = copyQuizFromFirst && firstQuizTaskIndex >= 0 && i !== firstQuizTaskIndex;
+        if (!isShared) {
+          const q = Array.isArray(t.quizSelectedQuestions) ? t.quizSelectedQuestions : [];
+          const expected = Number(t.quizQuestionCount) || q.length;
+          if (q.length !== expected) return `Task ${i + 1}: Select exactly ${expected} quiz questions.`;
+        }
+      }
     }
     return '';
   };
@@ -161,13 +177,24 @@ export default function AdminProjectBuilder() {
     setSaving(true);
     setError('');
     try {
+      const sharedQuizQuestions = firstQuizTaskIndex >= 0 ? tasks[firstQuizTaskIndex]?.quizSelectedQuestions : [];
       const payload = {
         overallTotalBudget: Number(editableBudget),
-        microJobs: tasks.map((t) => ({
+        microJobs: tasks.map((t, idx) => ({
           title: t.title.trim(),
           description: t.description.trim(),
           requiredTechStack: parseTechStack(t.requiredTechStackText),
           allocatedBudget: Number(t.allocatedBudget),
+          assessment:
+            t.quizEnabled === true
+              ? {
+                  enabled: true,
+                  questions:
+                    copyQuizFromFirst && firstQuizTaskIndex >= 0 && idx !== firstQuizTaskIndex
+                      ? sharedQuizQuestions
+                      : t.quizSelectedQuestions,
+                }
+              : { enabled: false },
         })),
       };
 
@@ -249,6 +276,14 @@ export default function AdminProjectBuilder() {
         <div className="builder-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <h2>Micro-Deliverables</h2>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={copyQuizFromFirst}
+                    onChange={(e) => setCopyQuizFromFirst(e.target.checked)}
+                  />
+                  Use first task quiz for all quiz-enabled tasks
+                </label>
             <button 
               type="button" 
               className="btn btn-secondary btn-sm" 
@@ -319,6 +354,49 @@ export default function AdminProjectBuilder() {
                   placeholder="0"
                 />
               </div>
+
+              <div className="field field-wide" style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!t.quizEnabled}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setTaskField(idx, 'quizEnabled', enabled);
+                      if (!enabled) setTaskField(idx, 'quizSelectedQuestions', []);
+                    }}
+                  />
+                  Require assessment quiz before proposals for this task
+                </label>
+              </div>
+
+              {t.quizEnabled && !(
+                copyQuizFromFirst && firstQuizTaskIndex >= 0 && idx !== firstQuizTaskIndex
+              ) && (
+                <div className="field field-wide" style={{ gridColumn: '1 / -1' }}>
+                  <details open style={{ marginTop: 8 }}>
+                    <summary style={{ cursor: 'pointer', color: '#2b6cb0', fontWeight: 700 }}>
+                      Configure quiz for Task {idx + 1}
+                    </summary>
+                    <div style={{ marginTop: 10 }}>
+                      <AssessmentBuilder
+                        skillCategory={parseTechStack(t.requiredTechStackText).join(', ') || t.requiredTechStackText}
+                        selectedQuestions={t.quizSelectedQuestions}
+                        onSelectedQuestionsChange={(qs) => setTaskField(idx, 'quizSelectedQuestions', qs)}
+                        onQuestionCountChange={(n) => setTaskField(idx, 'quizQuestionCount', n)}
+                      />
+                    </div>
+                  </details>
+                </div>
+              )}
+
+              {t.quizEnabled && copyQuizFromFirst && firstQuizTaskIndex >= 0 && idx !== firstQuizTaskIndex && (
+                <div className="field field-wide" style={{ gridColumn: '1 / -1', marginTop: 8 }}>
+                  <div style={{ color: '#718096', fontSize: '0.95em' }}>
+                    Using quiz from Task {firstQuizTaskIndex + 1} (shared mode).
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}

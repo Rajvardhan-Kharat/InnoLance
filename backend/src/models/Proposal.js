@@ -17,6 +17,11 @@ const proposalSchema = new mongoose.Schema(
     attachments: [{ url: String, name: String }],
     aiScore: { type: Number, min: 1, max: 100 },
     aiFeedback: { type: String },
+
+    // Assessment (quiz) marks used for ranking test setter.
+    assessmentMarks: { type: Number },
+    assessmentTimeUsedMs: { type: Number },
+    assessmentAttempt: { type: mongoose.Schema.Types.ObjectId, ref: 'ProjectAssessmentAttempt' },
   },
   { timestamps: true }
 );

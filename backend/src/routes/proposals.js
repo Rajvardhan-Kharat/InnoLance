@@ -10,6 +10,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { evaluateProposal } from '../services/aiScoring.js';
+import ProjectAssessmentAttempt from '../models/ProjectAssessmentAttempt.js';
 
 const router = express.Router();
 
@@ -51,10 +52,20 @@ router.get('/', protect, async (req, res) => {
       const myProjects = await Project.find({ client: req.user._id }).distinct('_id');
       q.project = projectId ? projectId : { $in: myProjects };
     }
+    let sort = { createdAt: -1 };
+
+    // For test setter views, rank by assessment marks if this project has an assessment enabled.
+    if ((req.user.role === 'client' || req.user.role === 'admin') && projectId) {
+      const proj = await Project.findById(projectId).select('assessmentEnabled').lean();
+      if (proj?.assessmentEnabled) {
+        sort = { assessmentMarks: -1, assessmentTimeUsedMs: 1, createdAt: -1 };
+      }
+    }
+
     const proposals = await Proposal.find(q)
       .populate('project', 'title budgetType budget budgetMax status client')
       .populate('freelancer', 'firstName lastName avatar headline skills hourlyRate')
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip((page - 1) * limit)
       .limit(Number(limit))
       .lean();
@@ -102,8 +113,42 @@ router.post(
       const proj = await Project.findById(project);
       if (!proj) return res.status(404).json({ message: 'Project not found' });
       if (proj.status !== 'open') return res.status(400).json({ message: 'Project is not open for proposals' });
+
+      // If the project has an assessment, require a completed attempt.
+      let bestAttempt = null;
+      if (proj.assessmentEnabled) {
+        if (!proj.assessment) {
+          return res.status(500).json({ message: 'Assessment config missing for this project' });
+        }
+        bestAttempt = await ProjectAssessmentAttempt.findOne({
+          projectAssessment: proj.assessment,
+          user: req.user._id,
+          status: 'submitted',
+        })
+          .sort({ marks: -1, timeUsedMs: 1, submittedAt: 1 })
+          .lean();
+
+        if (!bestAttempt) {
+          return res.status(403).json({ message: 'You must complete the assessment quiz before submitting a proposal.' });
+        }
+      }
+
       const existing = await Proposal.findOne({ project, freelancer: req.user._id });
-      if (existing) return res.status(400).json({ message: 'You already submitted a proposal' });
+      if (existing) {
+        // If assessment is enabled, allow updating assessment marks/time (best of up to 3 attempts).
+        if (proj.assessmentEnabled && bestAttempt) {
+          existing.assessmentMarks = bestAttempt?.marks;
+          existing.assessmentTimeUsedMs = bestAttempt?.timeUsedMs;
+          existing.assessmentAttempt = bestAttempt?._id;
+          await existing.save();
+          const updated = await Proposal.findById(existing._id)
+            .populate('project', 'title budgetType budget budgetMax status client')
+            .populate('freelancer', 'firstName lastName avatar headline skills hourlyRate')
+            .lean();
+          return res.json({ proposal: updated });
+        }
+        return res.status(400).json({ message: 'You already submitted a proposal' });
+      }
 
       const resume = req.file ? {
         url: `/uploads/resumes/${req.file.filename}`,
@@ -129,6 +174,9 @@ router.post(
         attachments: [],
         aiScore: score,
         aiFeedback: feedback,
+        assessmentMarks: bestAttempt?.marks,
+        assessmentTimeUsedMs: bestAttempt?.timeUsedMs,
+        assessmentAttempt: bestAttempt?._id,
       });
       await Notification.create({
         user: proj.client,

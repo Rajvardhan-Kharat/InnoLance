@@ -27,6 +27,22 @@ export default function ProjectDetail() {
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [submittingReview, setSubmittingReview] = useState(false);
 
+  const [myAssessment, setMyAssessment] = useState(null);
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
+
+  const [assessmentResults, setAssessmentResults] = useState(null);
+  const [assessmentResultsOpen, setAssessmentResultsOpen] = useState(false);
+  const [assessmentResultsLoading, setAssessmentResultsLoading] = useState(false);
+
+  const formatMs = (ms) => {
+    if (ms === null || ms === undefined) return '--:--';
+    if (!Number.isFinite(ms)) return '--:--';
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  };
+
   useEffect(() => {
     const fetchProject = async () => {
       const { data } = await api.get(`/projects/${id}`);
@@ -36,6 +52,42 @@ export default function ProjectDetail() {
     };
     fetchProject();
   }, [id]);
+
+  useEffect(() => {
+    if (!user || user.role !== 'freelancer' || !project || !project.assessmentEnabled) return;
+    setAssessmentLoading(true);
+    const run = async () => {
+      try {
+        const { data } = await api.get(`/project-assessments/project/${id}/me`);
+        setMyAssessment(data);
+      } catch {
+        setMyAssessment(null);
+      } finally {
+        setAssessmentLoading(false);
+      }
+    };
+    run();
+  }, [user, project, id]);
+
+  // Re-fetch assessment status when a freelancer submits a quiz from /assessment page.
+  useEffect(() => {
+    if (!user || user.role !== 'freelancer') return;
+
+    const handler = (e) => {
+      const projectId = e?.detail?.projectId;
+      if (String(projectId) !== String(id)) return;
+      if (!project?.assessmentEnabled) return;
+
+      setAssessmentLoading(true);
+      api.get(`/project-assessments/project/${id}/me`)
+        .then(({ data }) => setMyAssessment(data))
+        .catch(() => setMyAssessment(null))
+        .finally(() => setAssessmentLoading(false));
+    };
+
+    window.addEventListener('assessment:updated', handler);
+    return () => window.removeEventListener('assessment:updated', handler);
+  }, [user, project, id]);
 
   useEffect(() => {
     if (!user || (user.role !== 'client' && user.role !== 'admin') || !project) return;
@@ -175,6 +227,10 @@ export default function ProjectDetail() {
       alert('Only freelancers can submit proposals.');
       return;
     }
+    if (project?.assessmentEnabled && !myAssessment?.best) {
+      alert('Please complete the project assessment quiz before submitting a proposal.');
+      return;
+    }
     setSubmitting(true);
     try {
       const hasResume = !!proposalForm.resumeFile;
@@ -201,6 +257,20 @@ export default function ProjectDetail() {
       alert(err.response?.data?.message || 'Failed to submit proposal');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const fetchAssessmentResults = async () => {
+    if (!project?.assessmentEnabled) return;
+    setAssessmentResultsLoading(true);
+    try {
+      const { data } = await api.get(`/project-assessments/project/${id}/results`);
+      setAssessmentResults(data);
+      setAssessmentResultsOpen(true);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to load assessment results');
+    } finally {
+      setAssessmentResultsLoading(false);
     }
   };
 
@@ -443,6 +513,55 @@ export default function ProjectDetail() {
               </button>
             </div>
           )}
+
+          {isClient && project.status === 'open' && project.assessmentEnabled && (
+            <div className="sidebar-card">
+              <button
+                type="button"
+                className="btn btn-ghost btn-block"
+                disabled={assessmentResultsLoading}
+                onClick={() => fetchAssessmentResults()}
+              >
+                {assessmentResultsOpen ? 'Refresh assessment results' : 'View assessment results'}
+              </button>
+
+              {assessmentResultsOpen && assessmentResults && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontWeight: 800, marginBottom: 6 }}>Ranking (best marks)</div>
+                  {assessmentResults.bestEntries.length === 0 ? (
+                    <div style={{ color: '#718096' }}>No assessment submissions yet.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {assessmentResults.bestEntries.map((entry) => (
+                        <div key={entry.user?._id || entry.userId} style={{ padding: 8, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                          <div style={{ fontWeight: 700 }}>
+                            {entry.user?.firstName} {entry.user?.lastName}
+                          </div>
+                          <div style={{ color: '#4a5568', fontSize: '0.9em' }}>
+                            Marks: {entry.marks} | Time: {formatMs(entry.timeUsedMs)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 14, fontWeight: 800, marginBottom: 6 }}>All attempts</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 250, overflow: 'auto', paddingRight: 6 }}>
+                    {assessmentResults.allAttempts.map((a) => (
+                      <div key={a._id} style={{ padding: 8, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                        <div style={{ fontWeight: 700 }}>
+                          {a.user?.firstName} {a.user?.lastName} ({a.user?.email})
+                        </div>
+                        <div style={{ color: '#4a5568', fontSize: '0.9em' }}>
+                          Marks: {a.marks} | Time: {formatMs(a.timeUsedMs)} | Submitted: {a.submittedAt ? new Date(a.submittedAt).toLocaleString() : '--'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {isClient && project.status === 'open' && suggestedFreelancers.length > 0 && (
             <div className="sidebar-card">
               <h3>Suggested freelancers</h3>
@@ -460,6 +579,16 @@ export default function ProjectDetail() {
           {user?.role === 'freelancer' && project.status === 'open' && (
             <div className="sidebar-card">
               <h3>Submit a proposal</h3>
+              {project.assessmentEnabled && !assessmentLoading && !myAssessment?.best && (
+                <div style={{ marginBottom: 12 }}>
+                  <p style={{ color: '#718096', marginBottom: 10 }}>
+                    Assessment quiz is required before you can submit a proposal.
+                  </p>
+                  <Link to={`/projects/${id}/assessment`} className="btn btn-primary btn-block">
+                    Take assessment quiz
+                  </Link>
+                </div>
+              )}
               <form onSubmit={handleSubmitProposal}>
                 <label>Cover letter</label>
                 <textarea
@@ -490,7 +619,11 @@ export default function ProjectDetail() {
                   accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(e) => setProposalForm({ ...proposalForm, resumeFile: e.target.files?.[0] || null })}
                 />
-                <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-block"
+                  disabled={submitting || (project.assessmentEnabled && !myAssessment?.best)}
+                >
                   {submitting ? 'Submitting...' : 'Submit proposal'}
                 </button>
               </form>
@@ -519,6 +652,15 @@ export default function ProjectDetail() {
                 <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f0f4f8', borderRadius: '4px', borderLeft: '4px solid #3182ce' }}>
                   <strong>🤖 AI Fit Score: {prop.aiScore}/100</strong>
                   <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', color: '#4a5568' }}>{prop.aiFeedback}</p>
+                </div>
+              ) : null}
+
+              {prop.assessmentMarks !== undefined && prop.assessmentMarks !== null ? (
+                <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f7fafc', borderRadius: '4px', borderLeft: '4px solid #2b6cb0' }}>
+                  <strong>🧠 Assessment Marks: {prop.assessmentMarks}</strong>
+                  <div style={{ marginTop: 4, color: '#4a5568', fontSize: '0.9em' }}>
+                    Time used: {formatMs(prop.assessmentTimeUsedMs)}
+                  </div>
                 </div>
               ) : null}
               <p className="cover-letter">{prop.coverLetter}</p>

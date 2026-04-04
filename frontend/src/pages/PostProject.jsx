@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { CATEGORIES, DURATIONS, SKILLS } from '../utils/constants';
+import AssessmentBuilder from '../components/AssessmentBuilder';
 import './PostProject.css';
 
 export default function PostProject() {
@@ -21,6 +22,11 @@ export default function PostProject() {
     duration: '1-4weeks',
     deadline: '',
   });
+
+  const [assessmentEnabled, setAssessmentEnabled] = useState(false);
+  const [assessmentSeed, setAssessmentSeed] = useState('');
+  const [assessmentQuestions, setAssessmentQuestions] = useState([]);
+  const [assessmentQuestionCount, setAssessmentQuestionCount] = useState(0);
 
   const toggleSkill = (skill) => {
     setForm((f) => ({
@@ -51,6 +57,24 @@ export default function PostProject() {
         if (form.weeklyMaxHours !== '') payload.weeklyMaxMinutes = Math.max(0, Math.round(Number(form.weeklyMaxHours) * 60));
       }
       if (form.deadline) payload.deadline = form.deadline;
+
+      if (assessmentEnabled) {
+        if (!assessmentQuestions || assessmentQuestions.length === 0) {
+          setError('Please build/select assessment questions before posting.');
+          setLoading(false);
+          return;
+        }
+        if (assessmentQuestions.length !== assessmentQuestionCount) {
+          setError(`Please select exactly ${assessmentQuestionCount} questions for the assessment.`);
+          setLoading(false);
+          return;
+        }
+        payload.assessmentEnabled = true;
+        payload.assessmentQuestions = assessmentQuestions;
+      } else {
+        payload.assessmentEnabled = false;
+      }
+
       const { data } = await api.post('/projects', payload);
       navigate(`/projects/${data.project._id}`);
     } catch (err) {
@@ -103,6 +127,43 @@ export default function PostProject() {
             </button>
           ))}
         </div>
+
+        <label style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            type="checkbox"
+            checked={assessmentEnabled}
+            onChange={(e) => {
+              const next = e.target.checked;
+              setAssessmentEnabled(next);
+              setAssessmentQuestions([]);
+              setAssessmentQuestionCount(0);
+              if (next) {
+                const seed = form.skills?.length ? form.skills.join(', ') : '';
+                setAssessmentSeed(seed);
+              }
+            }}
+          />
+          Require assessment quiz before proposal submission
+        </label>
+
+        {assessmentEnabled && (
+          <div style={{ marginTop: 12 }}>
+            <label>Assessment AI seed (skill/category)</label>
+            <input
+              value={assessmentSeed}
+              onChange={(e) => setAssessmentSeed(e.target.value)}
+              placeholder="e.g. React, UI/UX, Node.js, etc."
+            />
+            <div style={{ marginTop: 10 }}>
+              <AssessmentBuilder
+                skillCategory={assessmentSeed || form.skills.join(', ')}
+                selectedQuestions={assessmentQuestions}
+                onSelectedQuestionsChange={setAssessmentQuestions}
+                onQuestionCountChange={setAssessmentQuestionCount}
+              />
+            </div>
+          </div>
+        )}
         <label>Budget type *</label>
         <div className="radio-group">
           <label className="radio">

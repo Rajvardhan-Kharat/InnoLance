@@ -7,6 +7,7 @@ import EnterpriseProject from '../models/EnterpriseProject.js';
 import MicroJob from '../models/MicroJob.js';
 import PlatformSettings from '../models/PlatformSettings.js';
 import CmsPage from '../models/CmsPage.js';
+import ProjectAssessment from '../models/ProjectAssessment.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -273,6 +274,8 @@ router.post('/enterprise-projects/:id/microjobs/bulk', async (req, res) => {
         : [];
       const allocatedBudget = Number(mj?.allocatedBudget);
 
+      const assessmentPayload = mj?.assessment && typeof mj.assessment === 'object' ? mj.assessment : null;
+
       if (!title || !description) return res.status(400).json({ message: 'Each microJob requires title and description' });
       if (requiredTechStack.length === 0) return res.status(400).json({ message: 'Each microJob requires requiredTechStack (>=1 item)' });
       if (!Number.isFinite(allocatedBudget) || allocatedBudget < 0) return res.status(400).json({ message: 'Each microJob requires allocatedBudget (number >= 0)' });
@@ -299,7 +302,40 @@ router.post('/enterprise-projects/:id/microjobs/bulk', async (req, res) => {
         budget: allocatedBudget,
         status: 'open',
         attachments: ep.originalRfpDocumentUrl ? [{ url: ep.originalRfpDocumentUrl, name: 'RFP' }] : [],
+
+        assessmentEnabled: assessmentPayload?.enabled === true,
       });
+
+      if (assessmentPayload?.enabled === true) {
+        const assessmentQuestions = Array.isArray(assessmentPayload.questions) ? assessmentPayload.questions : [];
+        if (assessmentQuestions.length === 0) {
+          return res.status(400).json({ message: 'assessment.questions must be provided when assessment.enabled is true' });
+        }
+
+        const normalized = [];
+        for (let i = 0; i < assessmentQuestions.length; i++) {
+          const q = assessmentQuestions[i] || {};
+          const questionText = String(q.questionText || '').trim();
+          const options = Array.isArray(q.options) ? q.options.map((o) => String(o).trim()) : [];
+          const correctOptionIndex = Number(q.correctOptionIndex);
+          if (!questionText) return res.status(400).json({ message: `Invalid questionText at index ${i}` });
+          if (options.length !== 4 || options.some((o) => !o)) return res.status(400).json({ message: `Invalid options at index ${i}` });
+          if (!Number.isInteger(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex > 3) {
+            return res.status(400).json({ message: `Invalid correctOptionIndex at index ${i}` });
+          }
+          normalized.push({ questionText, options, correctOptionIndex });
+        }
+
+        const totalTimeSeconds = normalized.length * 120;
+        const assessment = await ProjectAssessment.create({
+          project: marketplaceProject._id,
+          questions: normalized,
+          totalTimeSeconds,
+          createdBy: req.user._id,
+        });
+        marketplaceProject.assessment = assessment._id;
+        await marketplaceProject.save();
+      }
 
       micro.marketplaceProject = marketplaceProject._id;
       await micro.save();

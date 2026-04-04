@@ -18,6 +18,10 @@ const projectSchema = new mongoose.Schema(
     status: { type: String, enum: ['open', 'in_progress', 'completed', 'cancelled'], default: 'open' },
     freelancer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     attachments: [{ url: String, name: String }],
+
+    // Optional assessment required before freelancers can submit proposals.
+    assessmentEnabled: { type: Boolean, default: false },
+    assessment: { type: mongoose.Schema.Types.ObjectId, ref: 'ProjectAssessment', default: null },
   },
   { timestamps: true }
 );
