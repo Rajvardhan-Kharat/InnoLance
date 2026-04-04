@@ -34,6 +34,9 @@ export default function ProjectDetail() {
   const [assessmentResultsOpen, setAssessmentResultsOpen] = useState(false);
   const [assessmentResultsLoading, setAssessmentResultsLoading] = useState(false);
 
+  const [escrowSubmit, setEscrowSubmit] = useState({ text: '', links: '' });
+  const [escrowActionBusy, setEscrowActionBusy] = useState(false);
+
   const formatMs = (ms) => {
     if (ms === null || ms === undefined) return '--:--';
     if (!Number.isFinite(ms)) return '--:--';
@@ -99,7 +102,8 @@ export default function ProjectDetail() {
   }, [user, project, id]);
 
   useEffect(() => {
-    if (!user || !project || project.status !== 'in_progress' || project.budgetType !== 'fixed') return;
+    if (!user || !project || project.budgetType !== 'fixed') return;
+    if (!['in_progress', 'in_review'].includes(project.status)) return;
     api.get(`/milestones/project/${id}`).then(({ data }) => setMilestones(data.milestones)).catch(() => setMilestones([]));
   }, [user, project, id]);
 
@@ -210,10 +214,73 @@ export default function ProjectDetail() {
   const handleAcceptProposal = async (proposalId) => {
     try {
       await api.patch(`/proposals/${proposalId}/accept`);
-      setProject((p) => ({ ...p, status: 'in_progress', freelancer: proposals.find((x) => x._id === proposalId)?.freelancer }));
+      const { data } = await api.get(`/projects/${id}`);
+      setProject(data.project);
       setProposals((prev) => prev.filter((p) => p._id !== proposalId));
     } catch (e) {
       alert(e.response?.data?.message || 'Failed');
+    }
+  };
+
+  const handleEscrowSubmitWork = async (e) => {
+    e.preventDefault();
+    setEscrowActionBusy(true);
+    try {
+      const links = escrowSubmit.links
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      await api.post(`/projects/${id}/submit-work`, {
+        submissionText: escrowSubmit.text.trim(),
+        submissionLinks: links,
+      });
+      const { data } = await api.get(`/projects/${id}`);
+      setProject(data.project);
+      setEscrowSubmit({ text: '', links: '' });
+      alert('Submitted for client review.');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to submit');
+    } finally {
+      setEscrowActionBusy(false);
+    }
+  };
+
+  const handleEscrowRelease = async () => {
+    if (!window.confirm('Approve this delivery and release payment to the freelancer?')) return;
+    setEscrowActionBusy(true);
+    try {
+      const { data } = await api.post(`/payments/escrow/release/${id}`);
+      setProject(data.project);
+      alert('Payment released. Project marked completed.');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to release');
+    } finally {
+      setEscrowActionBusy(false);
+    }
+  };
+
+  const handleEscrowRequestChanges = async () => {
+    setEscrowActionBusy(true);
+    try {
+      const { data } = await api.patch(`/projects/${id}/request-changes`);
+      setProject(data.project);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed');
+    } finally {
+      setEscrowActionBusy(false);
+    }
+  };
+
+  const handleEscrowDispute = async () => {
+    if (!window.confirm('Flag this project as disputed? Funds stay locked until resolved.')) return;
+    setEscrowActionBusy(true);
+    try {
+      const { data } = await api.patch(`/projects/${id}/dispute`);
+      setProject(data.project);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed');
+    } finally {
+      setEscrowActionBusy(false);
     }
   };
 
@@ -280,6 +347,7 @@ export default function ProjectDetail() {
   const isFreelancer = user && project.freelancer?._id === user._id;
   const canReview = project.status === 'completed' && (isClient || isFreelancer);
   const alreadyReviewed = canReview && reviews.some((r) => r.reviewer?._id === user?._id);
+  const hasEscrow = project.budgetType === 'fixed' && Number(project.escrowLockedPaise) > 0;
 
   return (
     <div className="project-detail">
@@ -338,9 +406,91 @@ export default function ProjectDetail() {
               </div>
             </section>
           )}
-          {project.status === 'in_progress' && project.budgetType === 'fixed' && (isClient || isFreelancer) && (
+          {hasEscrow && ['in_progress', 'in_review', 'disputed'].includes(project.status) && (
+            <section>
+              <h2>Delivery &amp; escrow</h2>
+              <p className="text-muted">
+                Client has ₹{((Number(project.escrowLockedPaise) || 0) / 100).toFixed(2)} in escrow for this job.
+                On approval, the freelancer receives ₹{((Number(project.escrowFreelancerCreditPaise) || 0) / 100).toFixed(2)} (after platform fees).
+              </p>
+              {project.status === 'disputed' && (
+                <p className="text-muted"><strong>Disputed:</strong> escrow is frozen. Contact support or resolve with the other party.</p>
+              )}
+              {project.status === 'in_progress' && isFreelancer && (
+                <form onSubmit={handleEscrowSubmitWork} className="milestone-form" style={{ marginTop: 12 }}>
+                  <label>What you delivered (notes)</label>
+                  <textarea
+                    rows={4}
+                    value={escrowSubmit.text}
+                    onChange={(e) => setEscrowSubmit((s) => ({ ...s, text: e.target.value }))}
+                    placeholder="Describe the deliverable, repo branch, etc."
+                  />
+                  <label>Links (one per line)</label>
+                  <textarea
+                    rows={3}
+                    value={escrowSubmit.links}
+                    onChange={(e) => setEscrowSubmit((s) => ({ ...s, links: e.target.value }))}
+                    placeholder="https://..."
+                  />
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={escrowActionBusy}>
+                    {escrowActionBusy ? 'Submitting...' : 'Submit for client review'}
+                  </button>
+                </form>
+              )}
+              {(project.status === 'in_progress' || project.status === 'in_review') && isFreelancer && (
+                <div style={{ marginTop: 12 }}>
+                  <button type="button" className="btn btn-ghost btn-sm" disabled={escrowActionBusy} onClick={handleEscrowDispute}>
+                    Dispute
+                  </button>
+                </div>
+              )}
+              {project.status === 'in_review' && (isClient || user?.role === 'admin') && (
+                <div style={{ marginTop: 12 }}>
+                  {project.submittedAt && (
+                    <p className="text-muted">Submitted {new Date(project.submittedAt).toLocaleString()}</p>
+                  )}
+                  {project.submissionText ? (
+                    <div style={{ marginBottom: 12 }}>
+                      <strong>Freelancer notes</strong>
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{project.submissionText}</p>
+                    </div>
+                  ) : null}
+                  {project.submissionLinks?.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <strong>Links</strong>
+                      <ul>
+                        {project.submissionLinks.map((u) => (
+                          <li key={u}><a href={u} target="_blank" rel="noreferrer">{u}</a></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <button type="button" className="btn btn-primary btn-sm" disabled={escrowActionBusy} onClick={handleEscrowRelease}>
+                      Approve &amp; release payment
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={escrowActionBusy} onClick={handleEscrowRequestChanges}>
+                      Request changes
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={escrowActionBusy} onClick={handleEscrowDispute}>
+                      Dispute
+                    </button>
+                  </div>
+                </div>
+              )}
+              {project.status === 'in_progress' && isFreelancer && project.submittedAt && (
+                <p className="text-muted" style={{ marginTop: 8 }}>Waiting for the client after a revision request.</p>
+              )}
+            </section>
+          )}
+          {['in_progress', 'in_review'].includes(project.status) && project.budgetType === 'fixed' && (isClient || isFreelancer) && (
             <section>
               <h2>Milestones</h2>
+              {hasEscrow && (
+                <p className="text-muted">
+                  Payment for this job is held in project escrow. Per-milestone card payments are disabled; use <strong>Delivery &amp; escrow</strong> above to approve the final delivery.
+                </p>
+              )}
               {milestones.length === 0 && !addingMilestone && (
                 <p className="text-muted">No milestones yet. {isClient && 'Add one below.'}</p>
               )}
@@ -359,7 +509,7 @@ export default function ProjectDetail() {
                           Submit for review
                         </button>
                       )}
-                      {isClient && m.status === 'in_review' && (
+                      {isClient && m.status === 'in_review' && !hasEscrow && (
                         <button type="button" className="btn btn-primary btn-sm" onClick={() => handlePayMilestone(m._id, m.amount)}>
                           Pay ₹{m.amount}
                         </button>

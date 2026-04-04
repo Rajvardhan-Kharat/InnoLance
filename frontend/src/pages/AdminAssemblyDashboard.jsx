@@ -15,6 +15,22 @@ function pct(approved, total) {
 
 const KANBAN_COLUMNS = ['Open', 'Assigned', 'Submitted', 'Approved'];
 
+function resolveHiredUser(job) {
+  const h = job?.hiredUser;
+  if (h && typeof h === 'object' && (h.email || h.firstName || h.lastName)) return h;
+  const f = job?.marketplaceProject?.freelancer;
+  if (f && typeof f === 'object' && (f.email || f.firstName || f.lastName)) return f;
+  return null;
+}
+
+/** Column reflects DB status, but Open + hired marketplace project → Assigned (matches assembly flow). */
+function kanbanColumnForJob(job) {
+  const hired = resolveHiredUser(job);
+  let status = KANBAN_COLUMNS.includes(job?.status) ? job.status : 'Open';
+  if (status === 'Open' && hired) status = 'Assigned';
+  return status;
+}
+
 export default function AdminAssemblyDashboard() {
   const { projectId } = useParams();
 
@@ -33,12 +49,11 @@ export default function AdminAssemblyDashboard() {
 
   const microJobs = useMemo(() => safeArray(project?.microJobs), [project]);
 
-  // Sync MongoDB state to local Kanban Board state
+  // Sync server state to local Kanban (hired micro-tasks → Assigned even before manual drag)
   useEffect(() => {
     const cols = { Open: [], Assigned: [], Submitted: [], Approved: [] };
-    microJobs.forEach(job => {
-      const status = KANBAN_COLUMNS.includes(job.status) ? job.status : 'Open';
-      cols[status].push(job);
+    microJobs.forEach((job) => {
+      cols[kanbanColumnForJob(job)].push(job);
     });
     setColumnsData(cols);
   }, [microJobs]);
@@ -207,7 +222,7 @@ export default function AdminAssemblyDashboard() {
                     </h3>
                     
                     {columnsData[columnId].map((job, index) => {
-                       const hired = job?.hiredUser;
+                       const hired = resolveHiredUser(job);
                        const hiredLabel = hired
                          ? `${hired.firstName || ''} ${hired.lastName || ''}`.trim() || hired.email || 'Assigned'
                          : 'Unassigned';

@@ -80,6 +80,9 @@ router.patch('/:id/status', protect, async (req, res) => {
       });
     } else if (status === 'released') {
       if (!isClient) return res.status(403).json({ message: 'Only client can release milestone' });
+      if (milestone.project.escrowLockedPaise && milestone.project.escrowLockedPaise > 0) {
+        return res.status(400).json({ message: 'Use project delivery approval to release escrow payment.' });
+      }
       milestone.status = 'released';
       await Notification.create({
         user: milestone.project.freelancer,

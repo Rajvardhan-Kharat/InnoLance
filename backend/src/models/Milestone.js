@@ -7,8 +7,16 @@ const milestoneSchema = new mongoose.Schema(
     description: { type: String },
     amount: { type: Number, required: true },
     dueDate: { type: Date },
-    status: { type: String, enum: ['pending', 'in_review', 'released', 'disputed'], default: 'pending' },
+    status: {
+      type: String,
+      enum: ['pending', 'funded', 'in_progress', 'in_review', 'released', 'disputed'],
+      default: 'pending',
+    },
     order: { type: Number, default: 0 },
+
+    submissionText: { type: String, default: '' },
+    submissionLinks: [{ type: String }],
+    submittedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

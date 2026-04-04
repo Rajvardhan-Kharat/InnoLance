@@ -23,8 +23,10 @@ const userSchema = new mongoose.Schema(
     certifications: [{ name: String, issuer: String, date: Date, url: String }],
     availability: { type: String, enum: ['full-time', 'part-time', 'as-needed'], default: 'as-needed' },
 
-    // Wallet balance stored in paise (INR * 100) to avoid floating point issues.
+    // Spendable wallet balance (INR, paise). Legacy field name unchanged for backward compatibility.
     walletBalancePaise: { type: Number, default: 0, min: 0 },
+    // Funds locked in internal escrow (e.g. client-side while work is in progress). Default 0 for all existing users.
+    escrowBalancePaise: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );

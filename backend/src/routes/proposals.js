@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import Proposal from '../models/Proposal.js';
 import Project from '../models/Project.js';
+import MicroJob from '../models/MicroJob.js';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import WalletTransaction from '../models/WalletTransaction.js';
@@ -224,92 +225,153 @@ router.patch('/:id/accept', protect, restrictTo('client', 'admin'), async (req, 
     try {
       // Standalone MongoDB doesn't support transactions. Use atomic wallet operations.
       const meta = { projectId: proposal.project._id, proposalId: proposal._id, bidINR, feeINR: clientFeeINR };
+      const isFixedEscrow = proposal.project.budgetType === 'fixed';
 
-      // 1) Debit client atomically if enough balance (Admins bypass balance limit)
       let clientAfter;
-      if (isAdmin) {
-        clientAfter = await User.findOneAndUpdate(
-          { _id: req.user._id },
-          { $inc: { walletBalancePaise: -debitPaise } },
-          { new: true }
-        );
-      } else {
-        clientAfter = await User.findOneAndUpdate(
-          { _id: req.user._id, walletBalancePaise: { $gte: debitPaise } },
-          { $inc: { walletBalancePaise: -debitPaise } },
-          { new: true }
-        );
-      }
-      
-      if (!clientAfter) {
-        const current = await User.findById(req.user._id).select('walletBalancePaise').lean();
-        const have = (current?.walletBalancePaise || 0);
-        return res.status(400).json({
-          message: `Insufficient wallet balance. Need ₹${((debitPaise - have) / 100).toFixed(2)} more.`,
+
+      if (isFixedEscrow) {
+        // Fixed-price: move funds from client available → client escrow (no freelancer credit until release).
+        if (isAdmin) {
+          clientAfter = await User.findOneAndUpdate(
+            { _id: req.user._id },
+            { $inc: { walletBalancePaise: -debitPaise, escrowBalancePaise: debitPaise } },
+            { new: true }
+          );
+        } else {
+          clientAfter = await User.findOneAndUpdate(
+            { _id: req.user._id, walletBalancePaise: { $gte: debitPaise } },
+            { $inc: { walletBalancePaise: -debitPaise, escrowBalancePaise: debitPaise } },
+            { new: true }
+          );
+        }
+        if (!clientAfter) {
+          const current = await User.findById(req.user._id).select('walletBalancePaise').lean();
+          const have = current?.walletBalancePaise || 0;
+          return res.status(400).json({
+            message: `Insufficient wallet balance. Need ₹${((debitPaise - have) / 100).toFixed(2)} more.`,
+          });
+        }
+
+        await WalletTransaction.create({
+          user: req.user._id,
+          direction: 'debit',
+          amountPaise: debitPaise,
+          balanceAfterPaise: clientAfter.walletBalancePaise,
+          type: 'escrow_lock',
+          title: `Funds held in escrow (₹${bidINR.toFixed(2)} + ₹${clientFeeINR} fee)`,
+          meta: { ...meta, escrowBalanceAfterPaise: clientAfter.escrowBalancePaise || 0 },
         });
+
+        const freelancerOk = await User.findById(proposal.freelancer).select('_id').lean();
+        if (!freelancerOk) {
+          await User.findByIdAndUpdate(req.user._id, {
+            $inc: { walletBalancePaise: debitPaise, escrowBalancePaise: -debitPaise },
+          });
+          return res.status(500).json({ message: 'Freelancer not found. Escrow move reverted.' });
+        }
+      } else {
+        // Hourly (legacy): immediate wallet transfer.
+        if (isAdmin) {
+          clientAfter = await User.findOneAndUpdate(
+            { _id: req.user._id },
+            { $inc: { walletBalancePaise: -debitPaise } },
+            { new: true }
+          );
+        } else {
+          clientAfter = await User.findOneAndUpdate(
+            { _id: req.user._id, walletBalancePaise: { $gte: debitPaise } },
+            { $inc: { walletBalancePaise: -debitPaise } },
+            { new: true }
+          );
+        }
+
+        if (!clientAfter) {
+          const current = await User.findById(req.user._id).select('walletBalancePaise').lean();
+          const have = current?.walletBalancePaise || 0;
+          return res.status(400).json({
+            message: `Insufficient wallet balance. Need ₹${((debitPaise - have) / 100).toFixed(2)} more.`,
+          });
+        }
+
+        const freelancerAfter = await User.findByIdAndUpdate(
+          proposal.freelancer,
+          { $inc: { walletBalancePaise: creditPaise } },
+          { new: true }
+        );
+        if (!freelancerAfter) {
+          await User.findByIdAndUpdate(req.user._id, { $inc: { walletBalancePaise: debitPaise } });
+          return res.status(500).json({ message: 'Freelancer not found. Refunded client wallet.' });
+        }
+
+        await WalletTransaction.create([{
+          user: req.user._id,
+          direction: 'debit',
+          amountPaise: debitPaise,
+          balanceAfterPaise: clientAfter.walletBalancePaise,
+          type: 'proposal_accept_debit',
+          title: `Hired freelancer (₹${bidINR.toFixed(2)} + ₹${clientFeeINR} fee)`,
+          meta,
+        }, {
+          user: proposal.freelancer,
+          direction: 'credit',
+          amountPaise: creditPaise,
+          balanceAfterPaise: freelancerAfter.walletBalancePaise,
+          type: 'proposal_accept_credit',
+          title: `Project funded (₹${bidINR.toFixed(2)} - ₹${freelancerFeeINR} fee)`,
+          meta,
+        }]);
       }
 
-      // 2) Credit freelancer
-      const freelancerAfter = await User.findByIdAndUpdate(
-        proposal.freelancer,
-        { $inc: { walletBalancePaise: creditPaise } },
-        { new: true }
-      );
-      if (!freelancerAfter) {
-        // Compensation: refund client
-        await User.findByIdAndUpdate(req.user._id, { $inc: { walletBalancePaise: debitPaise } });
-        return res.status(500).json({ message: 'Freelancer not found. Refunded client wallet.' });
-      }
-
-      // 3) Ledger
-      await WalletTransaction.create([{
-        user: req.user._id,
-        direction: 'debit',
-        amountPaise: debitPaise,
-        balanceAfterPaise: clientAfter.walletBalancePaise,
-        type: 'proposal_accept_debit',
-        title: `Hired freelancer (₹${bidINR.toFixed(2)} + ₹${clientFeeINR} fee)`,
-        meta,
-      }, {
-        user: proposal.freelancer,
-        direction: 'credit',
-        amountPaise: creditPaise,
-        balanceAfterPaise: freelancerAfter.walletBalancePaise,
-        type: 'proposal_accept_credit',
-        title: `Project funded (₹${bidINR.toFixed(2)} - ₹${freelancerFeeINR} fee)`,
-        meta,
-      }]);
-
-      // 4) Accept proposal + update project + reject others
+      // Accept proposal + update project + reject others
       proposal.status = 'accepted';
       await proposal.save();
 
-      await Project.findByIdAndUpdate(proposal.project._id, {
-        freelancer: proposal.freelancer,
-        status: 'in_progress',
-      });
+      if (isFixedEscrow) {
+        await Project.findByIdAndUpdate(proposal.project._id, {
+          freelancer: proposal.freelancer,
+          status: 'in_progress',
+          escrowLockedPaise: debitPaise,
+          escrowFreelancerCreditPaise: creditPaise,
+        });
+      } else {
+        await Project.findByIdAndUpdate(proposal.project._id, {
+          freelancer: proposal.freelancer,
+          status: 'in_progress',
+        });
+      }
+
+      // Enterprise assembly: mirror hire onto the linked MicroJob so the Kanban shows Assigned + freelancer.
+      const linkedMicro = await MicroJob.findOne({ marketplaceProject: proposal.project._id });
+      if (linkedMicro) {
+        linkedMicro.hiredUser = proposal.freelancer;
+        if (linkedMicro.status === 'Open') linkedMicro.status = 'Assigned';
+        await linkedMicro.save();
+      }
 
       await Proposal.updateMany(
         { project: proposal.project._id, _id: { $ne: proposal._id } },
         { status: 'rejected' }
       );
 
-      // 5) Notifications
-      await Notification.create([{
+      const notifs = [{
         user: proposal.freelancer,
         type: 'proposal_accepted',
         title: 'Proposal accepted',
         body: `Your proposal on "${proposal.project.title}" was accepted.`,
         link: `/projects/${proposal.project._id}`,
         meta: { projectId: proposal.project._id, proposalId: proposal._id },
-      }, {
-        user: proposal.freelancer,
-        type: 'wallet_credit',
-        title: 'Wallet credited',
-        body: `₹${(creditPaise / 100).toFixed(2)} added to your wallet (platform fee applied).`,
-        link: '/wallet',
-        meta: { projectId: proposal.project._id, proposalId: proposal._id },
-      }]);
+      }];
+      if (!isFixedEscrow) {
+        notifs.push({
+          user: proposal.freelancer,
+          type: 'wallet_credit',
+          title: 'Wallet credited',
+          body: `₹${(creditPaise / 100).toFixed(2)} added to your wallet (platform fee applied).`,
+          link: '/wallet',
+          meta: { projectId: proposal.project._id, proposalId: proposal._id },
+        });
+      }
+      await Notification.create(notifs);
 
       const updated = await Proposal.findById(proposal._id)
         .populate('project')

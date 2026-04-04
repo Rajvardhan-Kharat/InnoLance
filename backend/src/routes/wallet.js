@@ -16,9 +16,13 @@ function isTransactionsNotSupported(err) {
 router.use(protect);
 
 router.get('/balance', async (req, res) => {
+  const available = req.user.walletBalancePaise || 0;
+  const escrow = req.user.escrowBalancePaise || 0;
   res.json({
-    balancePaise: req.user.walletBalancePaise || 0,
-    balanceINR: ((req.user.walletBalancePaise || 0) / 100).toFixed(2),
+    balancePaise: available,
+    balanceINR: (available / 100).toFixed(2),
+    escrowBalancePaise: escrow,
+    escrowBalanceINR: (escrow / 100).toFixed(2),
   });
 });
 
@@ -68,6 +72,8 @@ router.post(
       res.status(201).json({
         balancePaise: updatedUser.walletBalancePaise,
         balanceINR: (updatedUser.walletBalancePaise / 100).toFixed(2),
+        escrowBalancePaise: updatedUser.escrowBalancePaise || 0,
+        escrowBalanceINR: ((updatedUser.escrowBalancePaise || 0) / 100).toFixed(2),
       });
     } catch (err) {
       // Keep a helpful message if someone later enables transactions.
@@ -111,6 +117,8 @@ router.post(
       res.status(201).json({
         balancePaise: updatedUser.walletBalancePaise,
         balanceINR: (updatedUser.walletBalancePaise / 100).toFixed(2),
+        escrowBalancePaise: updatedUser.escrowBalancePaise || 0,
+        escrowBalanceINR: ((updatedUser.escrowBalancePaise || 0) / 100).toFixed(2),
       });
     } catch (err) {
       const code = err.statusCode || 500;

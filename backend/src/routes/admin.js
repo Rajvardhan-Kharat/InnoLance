@@ -13,6 +13,50 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = express.Router();
 
+/** Keep assembly Kanban in sync: hired marketplace project → microJob.hiredUser + Assigned when still Open. */
+async function syncMicroJobsWithMarketplaceProjects(parentProjectId) {
+  const microJobs = await MicroJob.find({
+    parentProject: parentProjectId,
+    marketplaceProject: { $ne: null },
+  }).lean();
+  if (!microJobs.length) return;
+
+  const projectIds = [...new Set(microJobs.map((m) => m.marketplaceProject).filter(Boolean))];
+  const projects = await Project.find({ _id: { $in: projectIds } })
+    .select('freelancer status')
+    .lean();
+  const byId = new Map(projects.map((p) => [String(p._id), p]));
+
+  for (const mj of microJobs) {
+    const mp = byId.get(String(mj.marketplaceProject));
+    if (!mp?.freelancer) continue;
+
+    const set = {};
+    if (!mj.hiredUser || String(mj.hiredUser) !== String(mp.freelancer)) {
+      set.hiredUser = mp.freelancer;
+    }
+    if (mj.status === 'Open' && mp.status === 'in_progress') {
+      set.status = 'Assigned';
+    }
+    if (Object.keys(set).length) {
+      await MicroJob.updateOne({ _id: mj._id }, { $set: set });
+    }
+  }
+}
+
+const enterpriseMicroJobPopulate = {
+  path: 'microJobs',
+  options: { sort: { createdAt: 1 } },
+  populate: [
+    { path: 'hiredUser', select: 'firstName lastName email' },
+    {
+      path: 'marketplaceProject',
+      select: 'status title freelancer',
+      populate: { path: 'freelancer', select: 'firstName lastName email' },
+    },
+  ],
+};
+
 // Public CMS page (no auth)
 router.get('/cms/public/:slug', async (req, res) => {
   try {
@@ -167,18 +211,16 @@ router.get('/enterprise-projects', async (req, res) => {
 // Get one enterprise project (admin) + populate microJobs
 router.get('/enterprise-projects/:id', async (req, res) => {
   try {
-    const project = await EnterpriseProject.findById(req.params.id)
-      .populate({
-        path: 'microJobs',
-        options: { sort: { createdAt: 1 } },
-        populate: [
-          { path: 'hiredUser', select: 'firstName lastName email' },
-          { path: 'marketplaceProject', select: 'status title' },
-        ],
-      })
+    const epId = req.params.id;
+    const exists = await EnterpriseProject.findById(epId).select('_id').lean();
+    if (!exists) return res.status(404).json({ message: 'EnterpriseProject not found' });
+
+    await syncMicroJobsWithMarketplaceProjects(epId);
+
+    const project = await EnterpriseProject.findById(epId)
+      .populate(enterpriseMicroJobPopulate)
       .populate('clientUser', 'firstName lastName email companyName')
       .lean();
-    if (!project) return res.status(404).json({ message: 'EnterpriseProject not found' });
     res.json({ project });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -357,14 +399,7 @@ router.post('/enterprise-projects/:id/microjobs/bulk', async (req, res) => {
     await ep.save();
 
     const populated = await EnterpriseProject.findById(ep._id)
-      .populate({
-        path: 'microJobs',
-        options: { sort: { createdAt: 1 } },
-        populate: [
-          { path: 'hiredUser', select: 'firstName lastName email' },
-          { path: 'marketplaceProject', select: 'status title' },
-        ],
-      })
+      .populate(enterpriseMicroJobPopulate)
       .populate('clientUser', 'firstName lastName email companyName');
 
     res.status(201).json({
@@ -405,7 +440,11 @@ router.patch('/microjobs/:id/status', async (req, res) => {
 
     const updated = await MicroJob.findById(micro._id)
       .populate('hiredUser', 'firstName lastName email')
-      .populate('marketplaceProject', 'status title')
+      .populate({
+        path: 'marketplaceProject',
+        select: 'status title freelancer',
+        populate: { path: 'freelancer', select: 'firstName lastName email' },
+      })
       .lean();
 
     res.json({ microJob: updated });

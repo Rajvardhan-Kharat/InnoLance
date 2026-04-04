@@ -8,7 +8,16 @@ const walletTransactionSchema = new mongoose.Schema(
     balanceAfterPaise: { type: Number, required: true },
     type: {
       type: String,
-      enum: ['topup', 'withdraw', 'proposal_accept_debit', 'proposal_accept_credit', 'platform_fee'],
+      enum: [
+        'topup',
+        'withdraw',
+        'proposal_accept_debit',
+        'proposal_accept_credit',
+        'platform_fee',
+        'escrow_lock',
+        'escrow_release',
+        'escrow_refund',
+      ],
       required: true,
       index: true,
     },

@@ -11,7 +11,7 @@ function formatINR(amount) {
 }
 
 export default function Wallet() {
-  const { balanceINR, transactions, topup, withdraw } = useWallet();
+  const { balanceINR, escrowBalanceINR, transactions, topup, withdraw } = useWallet();
   const [topupAmount, setTopupAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [msg, setMsg] = useState('');
@@ -57,6 +57,12 @@ export default function Wallet() {
         <div className="wallet-balance">
           <div className="wallet-balance-label">Available balance</div>
           <div className="wallet-balance-value">{formatINR(balanceINR)}</div>
+          {escrowBalanceINR > 0 && (
+            <>
+              <div className="wallet-balance-label" style={{ marginTop: 12 }}>In escrow (locked for active hires)</div>
+              <div className="wallet-balance-value" style={{ fontSize: '1.25rem', opacity: 0.9 }}>{formatINR(escrowBalanceINR)}</div>
+            </>
+          )}
         </div>
       </div>
 

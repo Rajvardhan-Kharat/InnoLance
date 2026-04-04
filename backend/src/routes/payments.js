@@ -5,10 +5,30 @@ import Milestone from '../models/Milestone.js';
 import Project from '../models/Project.js';
 import Notification from '../models/Notification.js';
 import { protect, restrictTo } from '../middleware/auth.js';
+import { releaseEscrowForProject } from '../services/escrowService.js';
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' }) : null;
 
 const router = express.Router();
+
+// Client approves submitted work → release internal escrow (fixed-price, wallet-only)
+router.post('/escrow/release/:projectId', protect, restrictTo('client', 'admin'), async (req, res) => {
+  try {
+    const result = await releaseEscrowForProject(req.params.projectId, {
+      actingUserId: req.user._id,
+      autoRelease: false,
+      actingIsAdmin: req.user.role === 'admin',
+    });
+    const populated = await Project.findById(result.project._id)
+      .populate('client', 'firstName lastName companyName avatar')
+      .populate('freelancer', 'firstName lastName avatar headline skills hourlyRate')
+      .lean();
+    res.json({ project: populated, message: 'Escrow released' });
+  } catch (err) {
+    const code = err.statusCode || 500;
+    res.status(code).json({ message: err.message });
+  }
+});
 
 // Demo/simulate payment when Stripe not configured
 router.post('/milestone/:milestoneId/demo-pay', protect, restrictTo('client'), async (req, res) => {
@@ -17,6 +37,11 @@ router.post('/milestone/:milestoneId/demo-pay', protect, restrictTo('client'), a
     if (!milestone) return res.status(404).json({ message: 'Milestone not found' });
     if (milestone.project.client.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not your project' });
+    }
+    if (milestone.project.escrowLockedPaise && milestone.project.escrowLockedPaise > 0) {
+      return res.status(400).json({
+        message: 'This project uses whole-project escrow. Approve delivery on the project page to release payment.',
+      });
     }
     if (milestone.status !== 'in_review') return res.status(400).json({ message: 'Milestone must be in review to pay' });
     const existing = await Payment.findOne({ milestone: milestone._id, status: { $in: ['held', 'released'] } });
@@ -57,6 +82,11 @@ router.post('/milestone/:milestoneId/create-intent', protect, restrictTo('client
     if (!milestone) return res.status(404).json({ message: 'Milestone not found' });
     if (milestone.project.client.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not your project' });
+    }
+    if (milestone.project.escrowLockedPaise && milestone.project.escrowLockedPaise > 0) {
+      return res.status(400).json({
+        message: 'This project uses whole-project escrow. Approve delivery on the project page to release payment.',
+      });
     }
     if (milestone.status !== 'in_review') return res.status(400).json({ message: 'Milestone must be in review to pay' });
     const existing = await Payment.findOne({ milestone: milestone._id, status: { $in: ['held', 'released'] } });

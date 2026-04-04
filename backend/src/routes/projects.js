@@ -192,6 +192,125 @@ router.post(
   }
 );
 
+// --- Escrow handover (fixed-price; internal wallet only) ---
+router.post('/:id/submit-work', protect, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+    const isFreelancer = project.freelancer?.toString() === req.user._id.toString();
+    if (!isFreelancer) return res.status(403).json({ message: 'Only the freelancer can submit work' });
+    if (project.budgetType !== 'fixed' || !project.escrowLockedPaise || project.escrowLockedPaise <= 0) {
+      return res.status(400).json({ message: 'This project does not use fixed-price escrow' });
+    }
+    if (project.status === 'disputed') return res.status(400).json({ message: 'Project is disputed' });
+    if (project.status !== 'in_progress') {
+      return res.status(400).json({ message: 'Work can only be submitted while the project is in progress' });
+    }
+
+    const submissionText = String(req.body?.submissionText || '').trim();
+    const rawLinks = Array.isArray(req.body?.submissionLinks) ? req.body.submissionLinks : [];
+    const submissionLinks = rawLinks.map((u) => String(u).trim()).filter(Boolean).slice(0, 20);
+    if (!submissionText && submissionLinks.length === 0) {
+      return res.status(400).json({ message: 'Provide submissionText and/or submissionLinks' });
+    }
+
+    project.submissionText = submissionText;
+    project.submissionLinks = submissionLinks;
+    project.submittedAt = new Date();
+    project.status = 'in_review';
+    await project.save();
+
+    await Notification.create({
+      user: project.client,
+      type: 'escrow_work_submitted',
+      title: 'Work submitted for review',
+      body: `"${project.title}" is ready for your review.`,
+      link: `/projects/${project._id}`,
+      meta: { projectId: project._id },
+    });
+
+    const updated = await Project.findById(project._id)
+      .populate('client', 'firstName lastName companyName avatar')
+      .populate('freelancer', 'firstName lastName avatar headline skills hourlyRate');
+    res.json({ project: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.patch('/:id/request-changes', protect, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+    const isClient = project.client.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
+    if (!isClient && !isAdmin) return res.status(403).json({ message: 'Not allowed' });
+    if (project.status !== 'in_review') return res.status(400).json({ message: 'Nothing in review' });
+    if (!project.escrowLockedPaise || project.escrowLockedPaise <= 0) {
+      return res.status(400).json({ message: 'No active escrow' });
+    }
+
+    project.status = 'in_progress';
+    project.submissionText = '';
+    project.submissionLinks = [];
+    project.submittedAt = null;
+    await project.save();
+
+    if (project.freelancer) {
+      await Notification.create({
+        user: project.freelancer,
+        type: 'escrow_revision_requested',
+        title: 'Changes requested',
+        body: `The client asked for changes on "${project.title}".`,
+        link: `/projects/${project._id}`,
+        meta: { projectId: project._id },
+      });
+    }
+
+    const updated = await Project.findById(project._id)
+      .populate('client', 'firstName lastName companyName avatar')
+      .populate('freelancer', 'firstName lastName avatar headline skills hourlyRate');
+    res.json({ project: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.patch('/:id/dispute', protect, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+    const isClient = project.client.toString() === req.user._id.toString();
+    const isFreelancer = project.freelancer?.toString() === req.user._id.toString();
+    if (!isClient && !isFreelancer) return res.status(403).json({ message: 'Not allowed' });
+    if (!['in_progress', 'in_review'].includes(project.status)) {
+      return res.status(400).json({ message: 'Project cannot be disputed in its current state' });
+    }
+
+    project.status = 'disputed';
+    await project.save();
+
+    const other = isClient ? project.freelancer : project.client;
+    if (other) {
+      await Notification.create({
+        user: other,
+        type: 'escrow_disputed',
+        title: 'Project disputed',
+        body: `"${project.title}" was marked as disputed. Escrow remains locked pending resolution.`,
+        link: `/projects/${project._id}`,
+        meta: { projectId: project._id, raisedBy: req.user._id },
+      });
+    }
+
+    const updated = await Project.findById(project._id)
+      .populate('client', 'firstName lastName companyName avatar')
+      .populate('freelancer', 'firstName lastName avatar headline skills hourlyRate');
+    res.json({ project: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.patch('/:id', protect, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
@@ -199,6 +318,13 @@ router.patch('/:id', protect, async (req, res) => {
     const isClient = project.client.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin';
     if (!isClient && !isAdmin) return res.status(403).json({ message: 'Not allowed' });
+
+    if (req.body.status === 'completed' && project.escrowLockedPaise && project.escrowLockedPaise > 0) {
+      return res.status(400).json({
+        message: 'Release escrow (approve submitted work) before marking this project completed.',
+      });
+    }
+
     const allowed = ['title', 'description', 'category', 'skills', 'budgetType', 'budget', 'budgetMax', 'weeklyMinMinutes', 'weeklyMaxMinutes', 'duration', 'deadline', 'status', 'attachments'];
     Object.keys(req.body).forEach((k) => { if (allowed.includes(k)) project[k] = req.body[k]; });
     await project.save();

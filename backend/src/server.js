@@ -24,6 +24,7 @@ import projectAssessmentRoutes from './routes/projectAssessments.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { startListener } from './scripts/emailListener.js';
+import { runEscrowAutoReleaseJob } from './services/escrowAutoReleaseJob.js';
 
 dotenv.config();
 
@@ -62,6 +63,20 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Dat
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/freelance_platform')
   .then(() => console.log('MongoDB connected'))
   .catch((err) => console.error('MongoDB connection error:', err));
+
+const escrowIntervalMs = Number(process.env.ESCROW_AUTO_RELEASE_INTERVAL_MS || 0);
+if (escrowIntervalMs >= 60_000) {
+  setInterval(() => {
+    runEscrowAutoReleaseJob()
+      .then((r) => {
+        if (r.released > 0 || r.failed > 0) {
+          console.log(`[escrow auto-release] released=${r.released} failed=${r.failed}`);
+        }
+      })
+      .catch((e) => console.error('[escrow auto-release]', e.message));
+  }, escrowIntervalMs);
+  console.log(`Escrow auto-release job every ${escrowIntervalMs}ms (ESCROW_AUTO_RELEASE_INTERVAL_MS)`);
+}
 
 const PORT = process.env.PORT || 5000;
 const httpServer = http.createServer(app);

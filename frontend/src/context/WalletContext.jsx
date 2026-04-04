@@ -7,10 +7,12 @@ const WalletContext = createContext(null);
 export function WalletProvider({ children }) {
   const { user } = useAuth();
   const [balancePaise, setBalancePaise] = useState(0);
+  const [escrowBalancePaise, setEscrowBalancePaise] = useState(0);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const balanceINR = useMemo(() => (balancePaise / 100), [balancePaise]);
+  const escrowBalanceINR = useMemo(() => (escrowBalancePaise / 100), [escrowBalancePaise]);
 
   const refreshWallet = async () => {
     if (!user) return;
@@ -21,6 +23,7 @@ export function WalletProvider({ children }) {
         api.get('/wallet/transactions', { params: { limit: 10 } }),
       ]);
       setBalancePaise(b.data.balancePaise || 0);
+      setEscrowBalancePaise(b.data.escrowBalancePaise || 0);
       setTransactions(t.data.transactions || []);
     } finally {
       setLoading(false);
@@ -30,6 +33,7 @@ export function WalletProvider({ children }) {
   useEffect(() => {
     if (!user) {
       setBalancePaise(0);
+      setEscrowBalancePaise(0);
       setTransactions([]);
       return;
     }
@@ -40,6 +44,7 @@ export function WalletProvider({ children }) {
   const topup = async (amountINR) => {
     const { data } = await api.post('/wallet/topup', { amountINR });
     setBalancePaise(data.balancePaise || 0);
+    if (data.escrowBalancePaise !== undefined) setEscrowBalancePaise(data.escrowBalancePaise);
     await refreshWallet();
     return data;
   };
@@ -47,6 +52,7 @@ export function WalletProvider({ children }) {
   const withdraw = async (amountINR) => {
     const { data } = await api.post('/wallet/withdraw', { amountINR });
     setBalancePaise(data.balancePaise || 0);
+    if (data.escrowBalancePaise !== undefined) setEscrowBalancePaise(data.escrowBalancePaise);
     await refreshWallet();
     return data;
   };
@@ -55,6 +61,8 @@ export function WalletProvider({ children }) {
     <WalletContext.Provider value={{
       balancePaise,
       balanceINR,
+      escrowBalancePaise,
+      escrowBalanceINR,
       transactions,
       loading,
       refreshWallet,
