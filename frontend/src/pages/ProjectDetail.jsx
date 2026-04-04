@@ -36,6 +36,8 @@ export default function ProjectDetail() {
 
   const [escrowSubmit, setEscrowSubmit] = useState({ text: '', links: '' });
   const [escrowActionBusy, setEscrowActionBusy] = useState(false);
+  const [revisionModalOpen, setRevisionModalOpen] = useState(false);
+  const [revisionNote, setRevisionNote] = useState('');
 
   const formatMs = (ms) => {
     if (ms === null || ms === undefined) return '--:--';
@@ -94,9 +96,10 @@ export default function ProjectDetail() {
 
   useEffect(() => {
     if (!user || (user.role !== 'client' && user.role !== 'admin') || !project) return;
+    if (!['open', 'in_progress', 'in_review'].includes(project.status)) return;
     const fetchProposals = async () => {
       const { data } = await api.get('/proposals', { params: { projectId: id } });
-      setProposals(data.proposals);
+      setProposals(data.proposals || []);
     };
     fetchProposals();
   }, [user, project, id]);
@@ -216,7 +219,7 @@ export default function ProjectDetail() {
       await api.patch(`/proposals/${proposalId}/accept`);
       const { data } = await api.get(`/projects/${id}`);
       setProject(data.project);
-      setProposals((prev) => prev.filter((p) => p._id !== proposalId));
+      setProposals((prev) => prev.map((p) => (p._id === proposalId ? { ...p, status: 'accepted' } : p)));
     } catch (e) {
       alert(e.response?.data?.message || 'Failed');
     }
@@ -259,11 +262,24 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleEscrowRequestChanges = async () => {
+  const openRevisionModal = () => {
+    setRevisionNote('');
+    setRevisionModalOpen(true);
+  };
+
+  const handleEscrowRequestChangesSubmit = async (e) => {
+    e.preventDefault();
+    const note = revisionNote.trim();
+    if (!note) {
+      alert('Please describe what you want changed.');
+      return;
+    }
     setEscrowActionBusy(true);
     try {
-      const { data } = await api.patch(`/projects/${id}/request-changes`);
+      const { data } = await api.patch(`/projects/${id}/request-changes`, { message: note });
       setProject(data.project);
+      setRevisionModalOpen(false);
+      setRevisionNote('');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed');
     } finally {
@@ -272,7 +288,11 @@ export default function ProjectDetail() {
   };
 
   const handleEscrowDispute = async () => {
-    if (!window.confirm('Flag this project as disputed? Funds stay locked until resolved.')) return;
+    const disputeMsg =
+      user?.role === 'freelancer'
+        ? 'Flag this project as disputed? Your payment will stay on hold until this is resolved.'
+        : 'Flag this project as disputed? Payment will stay locked until this is resolved.';
+    if (!window.confirm(disputeMsg)) return;
     setEscrowActionBusy(true);
     try {
       const { data } = await api.patch(`/projects/${id}/dispute`);
@@ -348,6 +368,7 @@ export default function ProjectDetail() {
   const canReview = project.status === 'completed' && (isClient || isFreelancer);
   const alreadyReviewed = canReview && reviews.some((r) => r.reviewer?._id === user?._id);
   const hasEscrow = project.budgetType === 'fixed' && Number(project.escrowLockedPaise) > 0;
+  const acceptedBidDisplay = Number(project.acceptedBidAmount) > 0 ? Number(project.acceptedBidAmount) : null;
 
   return (
     <div className="project-detail">
@@ -408,13 +429,43 @@ export default function ProjectDetail() {
           )}
           {hasEscrow && ['in_progress', 'in_review', 'disputed'].includes(project.status) && (
             <section>
-              <h2>Delivery &amp; escrow</h2>
-              <p className="text-muted">
-                Client has ₹{((Number(project.escrowLockedPaise) || 0) / 100).toFixed(2)} in escrow for this job.
-                On approval, the freelancer receives ₹{((Number(project.escrowFreelancerCreditPaise) || 0) / 100).toFixed(2)} (after platform fees).
-              </p>
+              <h2>{isFreelancer ? 'Your payment & delivery' : 'Delivery & payment'}</h2>
+              {isFreelancer && (
+                <p className="text-muted">
+                  {acceptedBidDisplay != null ? (
+                    <>
+                      You were hired at <strong>₹{acceptedBidDisplay}</strong>. We safely hold that amount for you until the client approves your delivery—then it is added to your wallet.
+                    </>
+                  ) : (
+                    <>We safely hold your payment for this job until the client approves your delivery—then it is added to your wallet.</>
+                  )}
+                </p>
+              )}
+              {!isFreelancer && (
+                <p className="text-muted">
+                  ₹{((Number(project.escrowLockedPaise) || 0) / 100).toFixed(2)} is reserved for this job until you approve delivery or the review window ends.
+                  On approval, ₹{((Number(project.escrowFreelancerCreditPaise) || 0) / 100).toFixed(2)} is paid to the freelancer.
+                </p>
+              )}
               {project.status === 'disputed' && (
-                <p className="text-muted"><strong>Disputed:</strong> escrow is frozen. Contact support or resolve with the other party.</p>
+                <p className="text-muted">
+                  <strong>Disputed:</strong> payment is on hold. Contact support or resolve with the other party.
+                </p>
+              )}
+              {project.status === 'in_progress' && isFreelancer && project.revisionRequestNote && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    marginBottom: 12,
+                    padding: 12,
+                    background: '#fffbeb',
+                    border: '1px solid #fcd34d',
+                    borderRadius: 8,
+                  }}
+                >
+                  <strong>Client requested changes</strong>
+                  <p style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0' }}>{project.revisionRequestNote}</p>
+                </div>
               )}
               {project.status === 'in_progress' && isFreelancer && (
                 <form onSubmit={handleEscrowSubmitWork} className="milestone-form" style={{ marginTop: 12 }}>
@@ -469,7 +520,7 @@ export default function ProjectDetail() {
                     <button type="button" className="btn btn-primary btn-sm" disabled={escrowActionBusy} onClick={handleEscrowRelease}>
                       Approve &amp; release payment
                     </button>
-                    <button type="button" className="btn btn-ghost btn-sm" disabled={escrowActionBusy} onClick={handleEscrowRequestChanges}>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={escrowActionBusy} onClick={openRevisionModal}>
                       Request changes
                     </button>
                     <button type="button" className="btn btn-ghost btn-sm" disabled={escrowActionBusy} onClick={handleEscrowDispute}>
@@ -488,7 +539,9 @@ export default function ProjectDetail() {
               <h2>Milestones</h2>
               {hasEscrow && (
                 <p className="text-muted">
-                  Payment for this job is held in project escrow. Per-milestone card payments are disabled; use <strong>Delivery &amp; escrow</strong> above to approve the final delivery.
+                  {isFreelancer
+                    ? 'This job is paid when the client approves your final delivery above. Per-milestone card payments are turned off for this project.'
+                    : 'Payment for this job is released when you approve the final delivery above. Per-milestone payments are disabled for this project.'}
                 </p>
               )}
               {milestones.length === 0 && !addingMilestone && (
@@ -656,10 +709,10 @@ export default function ProjectDetail() {
           )}
         </div>
         <aside className="project-sidebar">
-          {isClient && project.status === 'open' && (
+          {isClient && ['open', 'in_progress', 'in_review'].includes(project.status) && (
             <div className="sidebar-card">
               <button type="button" className="btn btn-primary btn-block" onClick={() => setShowProposals(!showProposals)}>
-                {showProposals ? 'Hide' : 'View'} proposals ({proposalCount})
+                {showProposals ? 'Hide' : 'View'} proposals ({proposals.length || proposalCount})
               </button>
             </div>
           )}
@@ -791,7 +844,7 @@ export default function ProjectDetail() {
         <section className="proposals-list">
           <h2>Proposals</h2>
           {proposals.map((prop) => (
-            <div key={prop._id} className="proposal-item">
+            <div key={prop._id} className={`proposal-item ${prop.status === 'accepted' ? 'proposal-accepted' : ''}`}>
               <div className="proposal-freelancer">
                 <Link to={`/profile/${prop.freelancer._id}`}>
                   {prop.freelancer.firstName} {prop.freelancer.lastName}
@@ -827,17 +880,51 @@ export default function ProjectDetail() {
                     Download resume
                   </a>
                 )}
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  onClick={() => handleAcceptProposal(prop._id)}
-                >
-                  Accept
-                </button>
+                {prop.status === 'accepted' ? (
+                  <span className="btn btn-ghost btn-sm" style={{ cursor: 'default', opacity: 0.9 }} aria-label="Accepted proposal">
+                    Accepted
+                  </span>
+                ) : prop.status === 'pending' ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handleAcceptProposal(prop._id)}
+                  >
+                    Accept
+                  </button>
+                ) : (
+                  <span className="text-muted" style={{ fontSize: '0.85em' }}>{prop.status}</span>
+                )}
               </div>
             </div>
           ))}
         </section>
+      )}
+      {revisionModalOpen && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="modal-card" style={{ background: '#fff', borderRadius: 12, maxWidth: 480, width: '100%', padding: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
+            <h3 style={{ marginTop: 0 }}>Request changes</h3>
+            <p className="text-muted" style={{ fontSize: '0.9em' }}>Tell the freelancer what to fix or add. They will see this on the project page.</p>
+            <form onSubmit={handleEscrowRequestChangesSubmit}>
+              <textarea
+                rows={5}
+                value={revisionNote}
+                onChange={(e) => setRevisionNote(e.target.value)}
+                placeholder="e.g. Please update the login flow and share a new demo link."
+                required
+                style={{ width: '100%', marginTop: 12, marginBottom: 12 }}
+              />
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRevisionModalOpen(false)} disabled={escrowActionBusy}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={escrowActionBusy}>
+                  {escrowActionBusy ? 'Sending...' : 'Send to freelancer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
       <StripePaymentModal
         open={payModal.open}

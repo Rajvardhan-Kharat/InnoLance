@@ -109,6 +109,7 @@ export async function releaseEscrowForProject(projectId, opts = {}) {
   project.submissionText = '';
   project.submissionLinks = [];
   project.submittedAt = null;
+  project.revisionRequestNote = '';
   await project.save();
 
   const notifType = autoRelease ? 'escrow_auto_released' : 'escrow_released';

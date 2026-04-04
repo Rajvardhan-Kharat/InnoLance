@@ -218,6 +218,7 @@ router.post('/:id/submit-work', protect, async (req, res) => {
     project.submissionLinks = submissionLinks;
     project.submittedAt = new Date();
     project.status = 'in_review';
+    project.revisionRequestNote = '';
     await project.save();
 
     await Notification.create({
@@ -250,20 +251,31 @@ router.patch('/:id/request-changes', protect, async (req, res) => {
       return res.status(400).json({ message: 'No active escrow' });
     }
 
+    const note = String(req.body?.message || req.body?.revisionNote || '').trim();
+    if (!note) {
+      return res.status(400).json({ message: 'Please describe what you want changed (revision note).' });
+    }
+    if (note.length > 8000) {
+      return res.status(400).json({ message: 'Revision note is too long (max 8000 characters).' });
+    }
+
     project.status = 'in_progress';
     project.submissionText = '';
     project.submissionLinks = [];
     project.submittedAt = null;
+    project.revisionRequestNote = note;
     await project.save();
+
+    const excerpt = note.length > 500 ? `${note.slice(0, 500)}…` : note;
 
     if (project.freelancer) {
       await Notification.create({
         user: project.freelancer,
         type: 'escrow_revision_requested',
         title: 'Changes requested',
-        body: `The client asked for changes on "${project.title}".`,
+        body: `The client asked for changes on "${project.title}": ${excerpt}`,
         link: `/projects/${project._id}`,
-        meta: { projectId: project._id },
+        meta: { projectId: project._id, revisionNote: note },
       });
     }
 
@@ -296,7 +308,7 @@ router.patch('/:id/dispute', protect, async (req, res) => {
         user: other,
         type: 'escrow_disputed',
         title: 'Project disputed',
-        body: `"${project.title}" was marked as disputed. Escrow remains locked pending resolution.`,
+        body: `"${project.title}" was marked as disputed. Payment remains on hold pending resolution.`,
         link: `/projects/${project._id}`,
         meta: { projectId: project._id, raisedBy: req.user._id },
       });

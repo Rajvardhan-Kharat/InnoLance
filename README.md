@@ -1,110 +1,73 @@
-# OwnWork (InnoLance) - Auto-AI Freelancing Platform
+# InnoLance / OwnWork — Freelancing Platform
 
-Welcome to the **OwnWork** repository! This project is a modern, feature-rich freelancing and project management platform built to streamline the entire lifecycle of enterprise client projects. Acting under the company name **InnoLance**, this platform bridges the gap between massive Enterprise RFPs (Request for Proposals) and individual freelancers by leveraging AI and automation.
+A full-stack freelancing app: clients post work, freelancers bid, admins manage **enterprise RFPs** (email intake, AI micro-job suggestions, assembly Kanban). Money uses an **internal wallet**; **fixed-price hires** put funds in **escrow** until the client approves delivery (no Stripe required for that flow).
 
-## 🚀 Tech Stack
+## Tech stack
 
-**Frontend:**
-- React.js (Vite)
-- React Router DOM
-- Socket.io Client (Real-time updates)
-- Stripe Elements (Payments)
-- Axios
+| Layer | Stack |
+|--------|--------|
+| Frontend | React (Vite), React Router, Socket.io client, Axios |
+| Backend | Node.js, Express, MongoDB (Mongoose), JWT, Socket.io |
+| Optional | Stripe (milestone card flows), Google Gemini (micro-job suggestions), IMAP (RFP email intake) |
 
-**Backend:**
-- Node.js & Express.js
-- MongoDB & Mongoose
-- Google Gemini AI (`@google/generative-ai`)
-- Socket.io (WebSockets)
-- IMAP Flow & Mailparser (Email listening)
-- JWT & Bcrypt (Authentication)
-- Stripe API
+## Prerequisites
 
----
+- Node.js 18+
+- MongoDB (local or Atlas)
 
-## ✨ Features As Of Now
+## Quick start
 
-1. **Automated Enterprise RFP Intake**
-   - Built-in IMAP email listener automatically ingests Product Requirements Documents (PRDs) and RFPs sent to a dedicated corporate email inbox.
-   
-2. **AI-Powered PRD Breakdown**
-   - Integrates **Google Gemini AI** to automatically parse massive, complex PRDs. The AI intelligently breaks them down into smaller, actionable micro-deliverables and tasks.
+```bash
+# Backend
+cd backend
+npm install
+# Copy and edit .env — at minimum MONGODB_URI, JWT_SECRET, PORT
+npm run dev
 
-3. **Real-time Admin Operations**
-   - Real-time updates delivered instantly via **Socket.io**. The Admin dashboard gets live notifications immediately when a new RFP email is received and processed.
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
+```
 
-4. **InnoLance Admin Management Workflow**
-   - The Admin assumes the identity of **InnoLance**, managing the overarching client relationship. Admins can review, modify, and assemble the AI-generated task lists before pushing them to the public freelancer marketplace.
+Default dev URLs are usually **frontend** `http://localhost:5173` and **API** `http://localhost:5000` (or whatever you set in `PORT`).
 
-5. **Freelancer Bidding & Proposals**
-   - Freelancers can view available micro-tasks, submit bids, and write proposals. The Admin acts as the ultimate decider on assigning these micro-tasks.
+## Environment (backend)
 
-6. **Secure Wallet & Payments**
-   - Integrated with **Stripe** to handle milestone-based payments, escrow, and freelancer wallets securely.
+Typical variables (names may vary; check `backend/.env.example` if present):
 
-7. **Role-based Access Control**
-   - Distinct roles (Admin, Client, Freelancer) securely managed using JWT authentication to ensure strict data privacy and workflow enforcement.
+- `MONGODB_URI` — Mongo connection string  
+- `JWT_SECRET` — signing secret for auth tokens  
+- `PORT` — API port (frontend proxy should match)  
+- `CLIENT_URL` — e.g. `http://localhost:5173` (CORS / Socket.io)  
+- `GEMINI_API_KEY` — optional, for admin “suggest micro-jobs”  
+- `IMAP_USER` / `IMAP_PASSWORD` — optional; starts Gmail listener for RFP emails  
+- `RFP_INTAKE_BASE_URL` — optional; base URL for the listener to POST intake (defaults to `http://127.0.0.1:$PORT`)  
+- `RFP_INTAKE_WEBHOOK_SECRET` — optional; required on `/api/enterprise-rfp/intake` when set  
+- `ESCROW_AUTO_RELEASE_INTERVAL_MS` — optional; if ≥ `60000`, runs in-process auto-release check on that interval  
+- `ESCROW_AUTO_RELEASE_DAYS` — days in review before auto-release (default `7`; used by cron script below)
 
----
+## Useful scripts
 
-## 🔮 What We Can Add More (Future Roadmap)
+| Command | Purpose |
+|---------|---------|
+| `cd backend && npm run dev` | Run API with watch |
+| `cd frontend && npm run dev` | Run Vite dev server |
+| `node backend/src/scripts/escrowAutoRelease.js` | Cron-friendly job: auto-release escrow for stale `in_review` projects |
 
-Here are several high-impact features we can build next to make the platform even more powerful:
+## Main features (short)
 
-1. **AI-Driven Proposal Scoring**
-   - *Idea:* Use Gemini AI to automatically evaluate and rank incoming freelancer proposals based on the project’s requirements, saving the Admin hours of manual review.
+- **Roles:** admin, client, freelancer (JWT).  
+- **Projects & proposals:** posting, proposals, accept. **Fixed-price:** funds move to client **escrow**; freelancer is paid after **approve delivery** (or auto-release after the configured review window). **Hourly:** wallet rules differ (time entries).  
+- **Enterprise RFP:** email → intake webhook → enterprise project; admin **project builder**, **assembly** Kanban, bulk publish micro-jobs to marketplace projects.  
+- **Assessments:** optional per-project quizzes before proposals.  
+- **Wallet:** demo top-up / withdraw; transaction history.  
+- **Real-time:** Socket.io for notifications/messages (connect dev Socket to API port if not using Vite proxy).
 
-2. **In-App Messaging & Video Interviews**
-   - *Idea:* Integrate WebRTC for native video/audio calls or real-time chat so clients, admins, and freelancers can negotiate and conduct interviews without leaving the app.
+## Repo layout
 
-3. **Advanced Project Management (Gantt/Kanban)**
-   - *Idea:* Add visual task tracking, Gantt charts, and Kanban boards on both the Admin and Freelancer sides to visually map out task dependencies of massive RFPs.
+```
+backend/src/   — Express app, routes, models, services (e.g. escrow), scripts
+frontend/src/  — React pages, components, contexts
+```
 
-4. **Automated Code/Skill Verification**
-   - *Idea:* Integrate a sandboxed coding environment or quiz system to automatically test a freelancer's skills before they are allowed to bid on premium InnoLance tasks.
-
-5. **OAuth / Social Logins**
-   - *Idea:* Allow quick onboarding through LinkedIn, GitHub, or Google to reduce friction during sign-ups.
-
-6. **Automated Dispute Resolution Center**
-   - *Idea:* Create a structured mediating workflow where AI initially attempts to resolve discrepancies based on agreed milestones before escalating to a human admin.
-
-7. **Financial Analytics & Reporting Dashboard**
-   - *Idea:* A dedicated view for InnoLance admins to track company-wide ROI, active escrow balances, platform fees, and monthly revenue metrics.
-
----
-
-## 🛠️ Getting Started Locally
-
-### Prerequisites
-- Node.js (v18+)
-- MongoDB (Running locally or via Atlas)
-- Appropriate Environment Variables (Gemini API, Stripe, IMAP Email Credentials)
-
-### Setup Instructions
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Rajvardhan-Kharat/InnoLance.git
-   cd project2
-   ```
-
-2. **Install Backend Dependencies:**
-   ```bash
-   cd backend
-   npm install
-   ```
-
-3. **Install Frontend Dependencies:**
-   ```bash
-   cd ../frontend
-   npm install
-   ```
-
-4. **Start the Platform (Development Mode):**
-   - Term 1: `cd backend && npm run dev`
-   - Term 2: `cd frontend && npm run dev`
-
----
-
-*Built with ❤️ for modern freelancer orchestration.*

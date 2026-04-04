@@ -332,11 +332,13 @@ router.patch('/:id/accept', protect, restrictTo('client', 'admin'), async (req, 
           status: 'in_progress',
           escrowLockedPaise: debitPaise,
           escrowFreelancerCreditPaise: creditPaise,
+          acceptedBidAmount: bidINR,
         });
       } else {
         await Project.findByIdAndUpdate(proposal.project._id, {
           freelancer: proposal.freelancer,
           status: 'in_progress',
+          acceptedBidAmount: bidINR,
         });
       }
 

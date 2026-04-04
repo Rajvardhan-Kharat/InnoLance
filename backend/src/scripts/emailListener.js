@@ -1,6 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import axios from 'axios';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -86,8 +87,12 @@ async function processUnreadEmails() {
           
       const overallTotalBudget = budgetMatch ? Number(budgetMatch[1].replace(/,/g, '')) : 10000;
       
-      // Unique reference
-      const emailPrefix = senderObj.address.split('@')[0].toUpperCase();
+      const emailPrefix = senderObj.address.split('@')[0].toUpperCase().replace(/[^a-zA-Z0-9]/g, '').slice(0, 24) || 'SENDER';
+      const subjectStr = String(parsed.subject || '');
+      const intakeMessageId = (parsed.messageId && String(parsed.messageId).trim())
+        || `hash:${crypto.createHash('sha256').update(`${senderObj.address}|${subjectStr}|${rawText.slice(0, 2000)}`).digest('hex')}`;
+
+      // Human-readable ref for new rows only (dedupe uses intakeMessageId on the server)
       const clientReference = `RFP-${emailPrefix}-${Date.now().toString().slice(-4)}`;
 
       // Try to extract an attachment URL if one was sent
@@ -103,22 +108,33 @@ async function processUnreadEmails() {
         overallTotalBudget,
         originalRfpText: rawText,
         originalRfpDocumentUrl: attachmentUrl || undefined,
+        intakeMessageId,
       };
 
+      const apiBase = (process.env.RFP_INTAKE_BASE_URL || process.env.BACKEND_URL || `http://127.0.0.1:${process.env.PORT || 5000}`).replace(/\/$/, '');
+
       try {
-        console.log(`Posting extracted RFP payload to webhook...`);
-        const res = await axios.post('http://localhost:5003/api/enterprise-rfp/intake', payload, {
+        console.log(`Posting extracted RFP payload to ${apiBase}/api/enterprise-rfp/intake ...`);
+        const res = await axios.post(`${apiBase}/api/enterprise-rfp/intake`, payload, {
           headers: {
             'Content-Type': 'application/json',
-          }
+            ...(process.env.RFP_INTAKE_WEBHOOK_SECRET
+              ? { 'x-rfp-webhook-secret': process.env.RFP_INTAKE_WEBHOOK_SECRET }
+              : {}),
+          },
+          validateStatus: (s) => s >= 200 && s < 300,
         });
-        console.log(`Success! Created EnterpriseProject ID: ${res.data.project._id}`);
-        
-        // Mark as seen so we don't process it again using proper imapflow syntax
+        if (res.data?.duplicate) {
+          console.log(`Duplicate email skipped (already have EnterpriseProject ${res.data.project._id}).`);
+        } else {
+          console.log(`Success! EnterpriseProject ID: ${res.data.project._id}`);
+        }
+
+        // Always mark read after a successful intake so restarts / re-fetch do not recreate rows
         await client.messageFlagsAdd(message.uid, ['\\Seen'], { uid: true });
         console.log('Email marked as read.');
       } catch (postErr) {
-        console.error('Failed to post webhook. Is the backend running on 5003?', postErr.message);
+        console.error(`Failed to post RFP intake (${apiBase}). Set RFP_INTAKE_BASE_URL or PORT in .env.`, postErr.message);
       }
       console.log(`======================================\n`);
     }

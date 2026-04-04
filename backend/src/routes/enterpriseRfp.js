@@ -23,6 +23,8 @@ router.post(
     body('rfpText').optional().isString(),
     // Attachments may include extracted document URLs (or file URLs) from your email parsing service.
     body('attachments').optional().isArray(),
+    body('intakeMessageId').optional().isString(),
+    body('messageId').optional().isString(),
   ],
   async (req, res) => {
     try {
@@ -53,6 +55,18 @@ router.post(
         return res.status(400).json({ message: 'Provide at least one of originalRfpText/originalRfpDocumentUrl (or rfpText/rfpDocumentUrl).' });
       }
 
+      const intakeMessageId = String(req.body.intakeMessageId || req.body.messageId || '').trim();
+      if (intakeMessageId) {
+        const existing = await EnterpriseProject.findOne({ intakeMessageId }).lean();
+        if (existing) {
+          return res.status(200).json({
+            project: existing,
+            duplicate: true,
+            email: { sent: false, error: null },
+          });
+        }
+      }
+
       const project = await EnterpriseProject.create({
         clientUser,
         clientReference,
@@ -60,6 +74,7 @@ router.post(
         originalRfpText: originalRfpText || undefined,
         overallTotalBudget,
         microJobs: [],
+        ...(intakeMessageId ? { intakeMessageId } : {}),
       });
 
       // Emit real-time dashboard update for admins

@@ -41,6 +41,12 @@ const projectSchema = new mongoose.Schema(
     escrowLockedPaise: { type: Number, default: null },
     escrowFreelancerCreditPaise: { type: Number, default: null },
 
+    // Accepted proposal bid (INR) for display; set when a proposal is accepted.
+    acceptedBidAmount: { type: Number, default: null },
+
+    // Latest client feedback when requesting revisions (fixed-price delivery flow).
+    revisionRequestNote: { type: String, default: '' },
+
     // Optional assessment required before freelancers can submit proposals.
     assessmentEnabled: { type: Boolean, default: false },
     assessment: { type: mongoose.Schema.Types.ObjectId, ref: 'ProjectAssessment', default: null },
