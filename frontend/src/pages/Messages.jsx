@@ -17,6 +17,7 @@ export default function Messages() {
   const [typingUser, setTypingUser] = useState(null);
   const [callModal, setCallModal] = useState(null);
   const messagesEndRef = useRef(null);
+  const callsEnabled = String(import.meta.env.VITE_WEBRTC_CALLS_ENABLED || 'true').toLowerCase() !== 'false';
 
   useEffect(() => {
     api.get('/messages/conversations').then(({ data }) => {
@@ -114,6 +115,7 @@ export default function Messages() {
   };
 
   const startCall = () => {
+    if (!callsEnabled) return;
     if (!otherUserId) return;
     setCallModal({ mode: 'outgoing', otherUserId, otherName: otherParticipant?.firstName });
   };
@@ -129,7 +131,11 @@ export default function Messages() {
       });
     };
     socket.on('webrtc_offer', onIncomingOffer);
-    return () => socket.off('webrtc_offer', onIncomingOffer);
+    socket.on('call:offer', onIncomingOffer);
+    return () => {
+      socket.off('webrtc_offer', onIncomingOffer);
+      socket.off('call:offer', onIncomingOffer);
+    };
   }, [socket]);
 
   if (loading) return <div className="loading-screen">Loading...</div>;
@@ -183,9 +189,11 @@ export default function Messages() {
                     </Link>
                   )}
                 </div>
-                <button type="button" className="btn-call" onClick={startCall} title="Voice/Video call">
+                {callsEnabled && (
+                  <button type="button" className="btn-call" onClick={startCall} title="Voice/Video call">
                   📞
-                </button>
+                  </button>
+                )}
               </div>
               <div className="chat-messages">
                 {messages.map((m) => (

@@ -27,6 +27,21 @@ const userSchema = new mongoose.Schema(
     walletBalancePaise: { type: Number, default: 0, min: 0 },
     // Funds locked in internal escrow (e.g. client-side while work is in progress). Default 0 for all existing users.
     escrowBalancePaise: { type: Number, default: 0, min: 0 },
+
+    // Social auth (additive). Password auth remains supported.
+    oauthProviders: {
+      google: {
+        providerId: { type: String, default: '' },
+        email: { type: String, default: '' },
+        linkedAt: { type: Date, default: null },
+      },
+      github: {
+        providerId: { type: String, default: '' },
+        email: { type: String, default: '' },
+        linkedAt: { type: Date, default: null },
+      },
+    },
+    authProviders: { type: [String], default: ['password'] },
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );

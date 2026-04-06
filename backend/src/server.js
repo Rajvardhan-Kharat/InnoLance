@@ -30,7 +30,25 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
+function parseOrigins() {
+  const raw = process.env.CLIENT_URLS || process.env.CLIENT_URL || 'http://localhost:5173';
+  const parts = String(raw)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length ? parts : ['http://localhost:5173'];
+}
+
+const allowedOrigins = parseOrigins();
+app.use(cors({
+  origin(origin, cb) {
+    // allow same-origin / curl / server-to-server
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('CORS blocked'), false);
+  },
+  credentials: true,
+}));
 // Stripe webhook needs raw body - must be before json()
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());

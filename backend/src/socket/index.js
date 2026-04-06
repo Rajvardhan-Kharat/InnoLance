@@ -8,8 +8,18 @@ import User from '../models/User.js';
 let io;
 
 export function initSocket(httpServer) {
+  const originsRaw = process.env.CLIENT_URLS || process.env.CLIENT_URL || 'http://localhost:5173';
+  const allowedOrigins = String(originsRaw).split(',').map((s) => s.trim()).filter(Boolean);
+  const webrtcEnabled = String(process.env.WEBRTC_CALLS_ENABLED || 'true').toLowerCase() !== 'false';
   io = new Server(httpServer, {
-    cors: { origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true },
+    cors: {
+      origin(origin, cb) {
+        if (!origin) return cb(null, true);
+        if (allowedOrigins.includes(origin)) return cb(null, true);
+        return cb(new Error('CORS blocked'), false);
+      },
+      credentials: true,
+    },
     path: '/socket.io',
   });
 
@@ -100,17 +110,58 @@ export function initSocket(httpServer) {
     });
 
     // WebRTC signaling
+    function canWebrtc() {
+      if (webrtcEnabled) return true;
+      socket.emit('webrtc_disabled', { message: 'Calls are disabled' });
+      return false;
+    }
+
+    // Legacy event names (kept)
     socket.on('webrtc_offer', ({ toUserId, offer }) => {
+      if (!canWebrtc()) return;
       io.to(`user:${toUserId}`).emit('webrtc_offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer });
+      io.to(`user:${toUserId}`).emit('call:offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer });
     });
     socket.on('webrtc_answer', ({ toUserId, answer }) => {
+      if (!canWebrtc()) return;
       io.to(`user:${toUserId}`).emit('webrtc_answer', { fromUserId: socket.userId, answer });
+      io.to(`user:${toUserId}`).emit('call:answer', { fromUserId: socket.userId, answer });
     });
     socket.on('webrtc_ice', ({ toUserId, candidate }) => {
+      if (!canWebrtc()) return;
       io.to(`user:${toUserId}`).emit('webrtc_ice', { fromUserId: socket.userId, candidate });
+      io.to(`user:${toUserId}`).emit('call:ice', { fromUserId: socket.userId, candidate });
     });
     socket.on('webrtc_hangup', ({ toUserId }) => {
+      if (!canWebrtc()) return;
       io.to(`user:${toUserId}`).emit('webrtc_hangup', { fromUserId: socket.userId });
+      io.to(`user:${toUserId}`).emit('call:hangup', { fromUserId: socket.userId });
+    });
+
+    // New event names (preferred)
+    socket.on('call:offer', ({ toUserId, offer }) => {
+      if (!canWebrtc()) return;
+      io.to(`user:${toUserId}`).emit('call:offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer });
+      io.to(`user:${toUserId}`).emit('webrtc_offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer });
+    });
+    socket.on('call:answer', ({ toUserId, answer }) => {
+      if (!canWebrtc()) return;
+      io.to(`user:${toUserId}`).emit('call:answer', { fromUserId: socket.userId, answer });
+      io.to(`user:${toUserId}`).emit('webrtc_answer', { fromUserId: socket.userId, answer });
+    });
+    socket.on('call:ice', ({ toUserId, candidate }) => {
+      if (!canWebrtc()) return;
+      io.to(`user:${toUserId}`).emit('call:ice', { fromUserId: socket.userId, candidate });
+      io.to(`user:${toUserId}`).emit('webrtc_ice', { fromUserId: socket.userId, candidate });
+    });
+    socket.on('call:hangup', ({ toUserId }) => {
+      if (!canWebrtc()) return;
+      io.to(`user:${toUserId}`).emit('call:hangup', { fromUserId: socket.userId });
+      io.to(`user:${toUserId}`).emit('webrtc_hangup', { fromUserId: socket.userId });
+    });
+    socket.on('call:busy', ({ toUserId }) => {
+      if (!canWebrtc()) return;
+      io.to(`user:${toUserId}`).emit('call:busy', { fromUserId: socket.userId });
     });
 
     socket.on('disconnect', () => {});

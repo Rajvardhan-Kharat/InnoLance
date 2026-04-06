@@ -10,13 +10,25 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
   const remoteVideoRef = useRef(null);
   const pcRef = useRef(null);
   const streamRef = useRef(null);
+  const cleanupRef = useRef(null);
+
+  const iceServers = useRef(() => {
+    const raw = import.meta.env.VITE_WEBRTC_ICE_SERVERS;
+    if (!raw) return [{ urls: 'stun:stun.l.google.com:19302' }];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.length ? parsed : [{ urls: 'stun:stun.l.google.com:19302' }];
+    } catch {
+      return [{ urls: 'stun:stun.l.google.com:19302' }];
+    }
+  })().current;
 
   useEffect(() => {
     if (!socket || !otherUserId) return;
     if (mode !== 'outgoing') return;
 
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      iceServers,
     });
     pcRef.current = pc;
 
@@ -24,13 +36,17 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0];
     };
     pc.onicecandidate = (e) => {
-      if (e.candidate) socket.emit('webrtc_ice', { toUserId: otherUserId, candidate: e.candidate });
+      if (e.candidate) {
+        socket.emit('call:ice', { toUserId: otherUserId, candidate: e.candidate });
+        socket.emit('webrtc_ice', { toUserId: otherUserId, candidate: e.candidate });
+      }
     };
 
     const cleanup = () => {
       pc.close();
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
+    cleanupRef.current = cleanup;
 
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((stream) => {
@@ -41,6 +57,7 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       })
       .then((offer) => {
         pc.setLocalDescription(offer);
+        socket.emit('call:offer', { toUserId: otherUserId, offer });
         socket.emit('webrtc_offer', { toUserId: otherUserId, offer });
       })
       .catch(() => setError('Camera/mic access denied'));
@@ -59,15 +76,28 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       if (data.fromUserId !== otherUserId) return;
       onClose();
     };
+    const onBusy = (data) => {
+      if (data.fromUserId !== otherUserId) return;
+      setError('User is busy.');
+      setStatus('calling');
+    };
 
     socket.on('webrtc_answer', onAnswer);
+    socket.on('call:answer', onAnswer);
     socket.on('webrtc_ice', onIce);
+    socket.on('call:ice', onIce);
     socket.on('webrtc_hangup', onHangup);
+    socket.on('call:hangup', onHangup);
+    socket.on('call:busy', onBusy);
 
     return () => {
       socket.off('webrtc_answer', onAnswer);
+      socket.off('call:answer', onAnswer);
       socket.off('webrtc_ice', onIce);
+      socket.off('call:ice', onIce);
       socket.off('webrtc_hangup', onHangup);
+      socket.off('call:hangup', onHangup);
+      socket.off('call:busy', onBusy);
       cleanup();
     };
   }, [socket, otherUserId, mode]);
@@ -76,7 +106,7 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
     if (mode !== 'incoming' || !initialOffer || !socket) return;
     setStatus('connecting');
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      iceServers,
     });
     pcRef.current = pc;
 
@@ -84,7 +114,10 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0];
     };
     pc.onicecandidate = (e) => {
-      if (e.candidate) socket.emit('webrtc_ice', { toUserId: otherUserId, candidate: e.candidate });
+      if (e.candidate) {
+        socket.emit('call:ice', { toUserId: otherUserId, candidate: e.candidate });
+        socket.emit('webrtc_ice', { toUserId: otherUserId, candidate: e.candidate });
+      }
     };
 
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
@@ -97,6 +130,7 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       .then(() => pc.createAnswer())
       .then((answer) => {
         pc.setLocalDescription(answer);
+        socket.emit('call:answer', { toUserId: otherUserId, answer });
         socket.emit('webrtc_answer', { toUserId: otherUserId, answer });
         setStatus('connected');
       })
@@ -111,23 +145,30 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       onClose();
     };
     socket.on('webrtc_ice', onIce);
+    socket.on('call:ice', onIce);
     socket.on('webrtc_hangup', onHangup);
+    socket.on('call:hangup', onHangup);
     const cleanup = () => {
       socket.off('webrtc_ice', onIce);
+      socket.off('call:ice', onIce);
       socket.off('webrtc_hangup', onHangup);
+      socket.off('call:hangup', onHangup);
       pc.close();
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-    window.__callCleanup = cleanup;
+    cleanupRef.current = cleanup;
   };
 
   const handleReject = () => {
+    socket?.emit('call:busy', { toUserId: otherUserId });
     socket?.emit('webrtc_hangup', { toUserId: otherUserId });
     onClose();
   };
 
   const handleHangup = () => {
-    if (window.__callCleanup) window.__callCleanup();
+    cleanupRef.current?.();
+    cleanupRef.current = null;
+    socket?.emit('call:hangup', { toUserId: otherUserId });
     socket?.emit('webrtc_hangup', { toUserId: otherUserId });
     onClose();
   };

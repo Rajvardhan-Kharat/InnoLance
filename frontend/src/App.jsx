@@ -3,6 +3,8 @@ import Layout from './components/Layout';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import OAuthCallback from './pages/OAuthCallback';
+import OAuthComplete from './pages/OAuthComplete';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import PostProject from './pages/PostProject';
@@ -49,6 +51,8 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="login" element={<PublicOnly><Login /></PublicOnly>} />
         <Route path="register" element={<PublicOnly><Register /></PublicOnly>} />
+        <Route path="oauth/callback" element={<PublicOnly><OAuthCallback /></PublicOnly>} />
+        <Route path="oauth/complete" element={<PublicOnly><OAuthComplete /></PublicOnly>} />
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:id" element={<ProjectDetail />} />
         <Route path="projects/:id/assessment" element={<PrivateRoute><ProjectAssessment /></PrivateRoute>} />

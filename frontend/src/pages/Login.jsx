@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Auth.css';
 
@@ -10,6 +10,14 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+
+  const apiBase = useMemo(() => (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, ''), []);
+
+  useEffect(() => {
+    const oauthError = params.get('oauthError');
+    if (oauthError) setError(oauthError);
+  }, [params]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,6 +39,22 @@ export default function Login() {
         <h1>Log in</h1>
         <p className="auth-sub">Welcome back. Log in to continue.</p>
         {error && <div className="auth-error">{error}</div>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-block"
+            onClick={() => { window.location.href = `${apiBase}/auth/oauth/google/start`; }}
+          >
+            Continue with Google
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-block"
+            onClick={() => { window.location.href = `${apiBase}/auth/oauth/github/start`; }}
+          >
+            Continue with GitHub
+          </button>
+        </div>
         <form onSubmit={handleSubmit}>
           <label>Email</label>
           <input

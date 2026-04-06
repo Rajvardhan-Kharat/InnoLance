@@ -16,6 +16,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -55,6 +56,22 @@ export default function Register() {
         <h1>Create account</h1>
         <p className="auth-sub">Join as a client or freelancer.</p>
         {error && <div className="auth-error">{error}</div>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-block"
+            onClick={() => { window.location.href = `${apiBase}/auth/oauth/google/start`; }}
+          >
+            Continue with Google
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-block"
+            onClick={() => { window.location.href = `${apiBase}/auth/oauth/github/start`; }}
+          >
+            Continue with GitHub
+          </button>
+        </div>
         <form onSubmit={handleSubmit}>
           <label>I want to</label>
           <select name="role" value={form.role} onChange={handleChange}>
