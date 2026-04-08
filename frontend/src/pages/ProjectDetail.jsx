@@ -225,6 +225,19 @@ export default function ProjectDetail() {
     }
   };
 
+  const startConversationWithClient = async () => {
+    if (!user || !project?.client?._id) return;
+    try {
+      const { data } = await api.post('/messages/conversations', {
+        otherUserId: project.client._id,
+        projectId: project._id,
+      });
+      navigate(`/messages?convo=${data.conversation._id}`);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to open conversation');
+    }
+  };
+
   const handleEscrowSubmitWork = async (e) => {
     e.preventDefault();
     setEscrowActionBusy(true);
@@ -407,10 +420,10 @@ export default function ProjectDetail() {
                   {project.client.firstName} {project.client.lastName}
                 </Link>
                 {project.client.companyName && <span className="company"> — {project.client.companyName}</span>}
-                {user && (isFreelancer || isClient) && (
+                {user && isFreelancer && (
                   <span className="msg-link">
                     {' '}
-                    <Link to="/messages">Message</Link>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={startConversationWithClient}>Message</button>
                   </span>
                 )}
               </div>

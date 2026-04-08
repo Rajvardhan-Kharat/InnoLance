@@ -4,8 +4,9 @@ const messageSchema = new mongoose.Schema(
   {
     conversation: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', required: true },
     sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    body: { type: String, required: true },
+    body: { type: String, default: '' },
     read: { type: Boolean, default: false },
+    readAt: { type: Date, default: null },
     attachments: [{ url: String, name: String }],
   },
   { timestamps: true }

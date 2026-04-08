@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSocket } from '../context/SocketContext';
 import './CallModal.css';
 
-export default function CallModal({ mode, otherUserId, otherName, offer: initialOffer, onClose }) {
+export default function CallModal({ mode, otherUserId, otherName, offer: initialOffer, callType = 'video', onClose }) {
   const socket = useSocket();
   const [status, setStatus] = useState(mode === 'outgoing' ? 'calling' : 'incoming');
   const [error, setError] = useState('');
@@ -48,7 +48,7 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
     };
     cleanupRef.current = cleanup;
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    navigator.mediaDevices.getUserMedia({ video: callType !== 'audio', audio: true })
       .then((stream) => {
         streamRef.current = stream;
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
@@ -57,8 +57,8 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       })
       .then((offer) => {
         pc.setLocalDescription(offer);
-        socket.emit('call:offer', { toUserId: otherUserId, offer });
-        socket.emit('webrtc_offer', { toUserId: otherUserId, offer });
+        socket.emit('call:offer', { toUserId: otherUserId, offer, callType });
+        socket.emit('webrtc_offer', { toUserId: otherUserId, offer, callType });
       })
       .catch(() => setError('Camera/mic access denied'));
 
@@ -120,7 +120,7 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       }
     };
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    navigator.mediaDevices.getUserMedia({ video: callType !== 'audio', audio: true })
       .then((stream) => {
         streamRef.current = stream;
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
@@ -177,15 +177,16 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
     <div className="call-modal-overlay">
       <div className="call-modal">
         <h3>
-          {mode === 'outgoing' && (status === 'calling' ? 'Calling...' : status === 'connected' ? 'Connected' : '')}
-          {mode === 'incoming' && status === 'incoming' && 'Incoming call'}
+          {mode === 'outgoing' && (status === 'calling' ? `Calling (${callType})...` : status === 'connected' ? 'Connected' : '')}
+          {mode === 'incoming' && status === 'incoming' && `Incoming ${callType} call`}
           {mode === 'incoming' && status !== 'incoming' && 'Connected'}
           {' — '}{otherName}
         </h3>
         {error && <p className="call-error">{error}</p>}
         <div className="call-videos">
-          <video ref={localVideoRef} autoPlay muted playsInline className="local-video" />
-          <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />
+          <video ref={localVideoRef} autoPlay muted playsInline className="local-video" style={{ display: callType === 'audio' ? 'none' : 'block' }} />
+          <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" style={{ display: callType === 'audio' ? 'none' : 'block' }} />
+          {callType === 'audio' && <div style={{ color: 'var(--text-muted)' }}>Audio call in progress...</div>}
         </div>
         <div className="call-actions">
           {mode === 'incoming' && status === 'incoming' && (

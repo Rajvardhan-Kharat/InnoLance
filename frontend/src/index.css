@@ -13,6 +13,9 @@
   --warning: #eab308;
   --error: #ef4444;
   --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
   --font-sans: 'DM Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
@@ -41,6 +44,8 @@ body {
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -63,4 +68,62 @@ input, textarea, select {
 
 #root {
   min-height: 100vh;
+}
+
+.page-container {
+  width: 100%;
+}
+
+/* Global interactive baseline */
+a,
+button,
+input,
+textarea,
+select {
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/* Shared button primitives used across pages */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  padding: 9px 15px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
 }

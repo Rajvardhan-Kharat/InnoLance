@@ -9,7 +9,7 @@
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: 26px 20px 34px;
 }
 
 .loading-screen {
@@ -18,4 +18,5 @@
   justify-content: center;
   min-height: 60vh;
   color: var(--text-muted);
+  font-size: 0.95rem;
 }

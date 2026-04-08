@@ -52,6 +52,23 @@ export function initSocket(httpServer) {
         socket.join(`user:${socket.userId}`);
         socket.join(`conversation:${conversationId}`);
         socket.currentConversationId = conversationId;
+        const unread = await Message.find(
+          { conversation: convo._id, sender: { $ne: socket.userId }, read: false },
+          { _id: 1 }
+        ).lean();
+        if (unread.length > 0) {
+          const now = new Date();
+          await Message.updateMany(
+            { _id: { $in: unread.map((m) => m._id) } },
+            { read: true, readAt: now }
+          );
+          io.to(`conversation:${conversationId}`).emit('read_receipt', {
+            conversationId: String(conversationId),
+            readerId: socket.userId,
+            messageIds: unread.map((m) => String(m._id)),
+            readAt: now.toISOString(),
+          });
+        }
         if (cb) cb({ ok: true });
       } catch (e) {
         if (cb) cb({ error: e.message });
@@ -109,6 +126,30 @@ export function initSocket(httpServer) {
       }
     });
 
+    socket.on('mark_read', async ({ conversationId } = {}) => {
+      if (!conversationId) return;
+      try {
+        const convo = await Conversation.findById(conversationId).select('participants').lean();
+        if (!convo || !convo.participants.some((p) => p.toString() === socket.userId)) return;
+        const unread = await Message.find(
+          { conversation: conversationId, sender: { $ne: socket.userId }, read: false },
+          { _id: 1 }
+        ).lean();
+        if (unread.length === 0) return;
+        const now = new Date();
+        await Message.updateMany(
+          { _id: { $in: unread.map((m) => m._id) } },
+          { read: true, readAt: now }
+        );
+        io.to(`conversation:${conversationId}`).emit('read_receipt', {
+          conversationId: String(conversationId),
+          readerId: socket.userId,
+          messageIds: unread.map((m) => String(m._id)),
+          readAt: now.toISOString(),
+        });
+      } catch {}
+    });
+
     // WebRTC signaling
     function canWebrtc() {
       if (webrtcEnabled) return true;
@@ -117,10 +158,10 @@ export function initSocket(httpServer) {
     }
 
     // Legacy event names (kept)
-    socket.on('webrtc_offer', ({ toUserId, offer }) => {
+    socket.on('webrtc_offer', ({ toUserId, offer, callType }) => {
       if (!canWebrtc()) return;
-      io.to(`user:${toUserId}`).emit('webrtc_offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer });
-      io.to(`user:${toUserId}`).emit('call:offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer });
+      io.to(`user:${toUserId}`).emit('webrtc_offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer, callType });
+      io.to(`user:${toUserId}`).emit('call:offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer, callType });
     });
     socket.on('webrtc_answer', ({ toUserId, answer }) => {
       if (!canWebrtc()) return;
@@ -139,10 +180,10 @@ export function initSocket(httpServer) {
     });
 
     // New event names (preferred)
-    socket.on('call:offer', ({ toUserId, offer }) => {
+    socket.on('call:offer', ({ toUserId, offer, callType }) => {
       if (!canWebrtc()) return;
-      io.to(`user:${toUserId}`).emit('call:offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer });
-      io.to(`user:${toUserId}`).emit('webrtc_offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer });
+      io.to(`user:${toUserId}`).emit('call:offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer, callType });
+      io.to(`user:${toUserId}`).emit('webrtc_offer', { fromUserId: socket.userId, fromName: socket.user?.firstName, offer, callType });
     });
     socket.on('call:answer', ({ toUserId, answer }) => {
       if (!canWebrtc()) return;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import './FreelancerProfile.css';
@@ -7,6 +7,7 @@ import './FreelancerProfile.css';
 export default function FreelancerProfile() {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [rating, setRating] = useState({ avg: 0, count: 0 });
@@ -27,7 +28,7 @@ export default function FreelancerProfile() {
       const { data } = await api.post('/messages/conversations', {
         otherUserId: id,
       });
-      window.location.href = `/messages?convo=${data.conversation._id}`;
+      navigate(`/messages?convo=${data.conversation._id}`);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to start conversation');
     }

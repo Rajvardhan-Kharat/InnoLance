@@ -1,14 +1,17 @@
 .project-detail {
-  max-width: 900px;
+  max-width: 1080px;
 }
 
 .project-header {
-  margin-bottom: 28px;
+  margin-bottom: 22px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
 }
 
 .project-header h1 {
-  font-size: 1.75rem;
-  margin-bottom: 8px;
+  font-size: 1.85rem;
+  margin-bottom: 10px;
+  letter-spacing: -0.015em;
 }
 
 .project-header-meta {
@@ -29,10 +32,12 @@
 }
 
 .status {
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  text-transform: capitalize;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
 }
 
 .status-open { background: rgba(34, 197, 94, 0.2); color: var(--success); }
@@ -49,16 +54,30 @@
 
 @media (max-width: 768px) {
   .project-body { grid-template-columns: 1fr; }
+  .project-sidebar .sidebar-card {
+    position: static;
+    top: auto;
+  }
+  .project-header h1 {
+    font-size: 1.55rem;
+  }
 }
 
 .project-main section {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .project-main h2 {
-  font-size: 1rem;
-  margin-bottom: 8px;
+  font-size: 0.96rem;
+  margin-bottom: 10px;
   color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .project-main p {
@@ -99,10 +118,11 @@
 .project-sidebar .sidebar-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
+  border-radius: 14px;
+  padding: 18px;
   position: sticky;
   top: 80px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .sidebar-card h3 {
@@ -151,9 +171,14 @@
 .proposal-item {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
+}
+
+.proposal-item.proposal-accepted {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.08), transparent);
 }
 
 .proposal-freelancer .headline {

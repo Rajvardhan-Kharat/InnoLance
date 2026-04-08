@@ -39,7 +39,7 @@ export default function Proposals() {
   if (loading) return <div className="loading-screen">Loading...</div>;
 
   return (
-    <div className="proposals-page">
+    <div className="proposals-page page-container">
       <h1>Proposals</h1>
       <p className="page-sub">
         {user?.role === 'client' ? 'Proposals on your projects.' : 'Proposals you submitted.'}

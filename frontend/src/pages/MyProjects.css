@@ -1,56 +1,138 @@
-.my-projects h1 {
-  margin-bottom: 4px;
+.my-projects {
+  max-width: 1080px;
 }
 
-.project-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.my-projects .page-header {
+  margin-bottom: 20px;
 }
 
-.my-project-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.my-projects .page-header h1 {
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
 }
 
-.my-project-main {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.my-project-title {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.my-project-title:hover {
-  color: var(--accent);
-}
-
-.my-project-meta {
-  display: flex;
-  gap: 16px;
-  font-size: 0.9rem;
+.my-projects .muted {
+  margin: 0;
   color: var(--text-muted);
 }
 
-.my-project-meta .budget {
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.project-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  min-height: 230px;
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.card-top h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.35;
+}
+
+.card-top h3 a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.card-top h3 a:hover {
   color: var(--accent);
-  font-weight: 500;
+}
+
+.status-badge {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.status-badge.open {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.status-badge.in_progress {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.status-badge.in_review {
+  background: rgba(234, 179, 8, 0.14);
+  color: #ca8a04;
+  border-color: rgba(234, 179, 8, 0.25);
+}
+
+.status-badge.completed {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+
+.card-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.dot {
+  margin: 0 7px;
+  opacity: 0.7;
+}
+
+.card-desc {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.93rem;
+  line-height: 1.55;
+}
+
+.card-footer {
+  margin-top: auto;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.open-notice {
+  color: #059669;
+  font-weight: 600;
+}
+
+.card-actions {
+  margin-top: 2px;
 }
 
 .empty-state {
   text-align: center;
-  padding: 48px 20px;
+  padding: 52px 20px;
   color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
 }
 
 .empty-state p {
