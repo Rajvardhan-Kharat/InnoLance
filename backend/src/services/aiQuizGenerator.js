@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateWithGroq, isTransientGeminiError } from './llmFallback.js';
 
 function safeJsonParse(text) {
   if (!text) return null;
@@ -67,13 +68,13 @@ export async function generateQuizQuestions({
   skillCategory,
   questionCount = 5,
 }) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY not configured');
+    throw new Error('GEMINI_API_KEY/GOOGLE_API_KEY not configured');
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
   const count = Number(questionCount);
   const safeCount = Number.isFinite(count) ? Math.max(1, Math.min(count, 20)) : 5;
@@ -98,9 +99,33 @@ Return ONLY a valid JSON array (no markdown, no explanations) with the exact key
 ]
 `;
 
-  const result = await model.generateContent(prompt);
-  const text = result?.response?.text?.() ?? '';
-  const parsed = safeJsonParse(text);
+  let parsed = null;
+  let lastErr = null;
+  for (const modelName of modelsToTry) {
+    const model = genAI.getGenerativeModel({ model: modelName });
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const result = await model.generateContent(prompt);
+        const text = result?.response?.text?.() ?? '';
+        parsed = safeJsonParse(text);
+        if (parsed) break;
+        throw new Error('AI returned non-JSON response');
+      } catch (err) {
+        lastErr = err;
+        const transient = isTransientGeminiError(err);
+        if (!transient || attempt === 3) break;
+        await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** (attempt - 1))));
+      }
+    }
+    if (parsed) break;
+  }
+
+  if (!parsed) {
+    const groqText = await generateWithGroq(prompt);
+    if (groqText) parsed = safeJsonParse(groqText);
+  }
+
+  if (!parsed) throw (lastErr || new Error('AI quiz generation failed'));
 
   const validated = validateQuestions(parsed);
   if (!validated || validated.length !== safeCount) {

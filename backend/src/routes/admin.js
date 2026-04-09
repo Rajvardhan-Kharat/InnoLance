@@ -10,8 +10,33 @@ import CmsPage from '../models/CmsPage.js';
 import ProjectAssessment from '../models/ProjectAssessment.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateWithGroq, isTransientGeminiError } from '../services/llmFallback.js';
 
 const router = express.Router();
+
+function safeJsonParse(text) {
+  if (!text) return null;
+  let cleaned = String(text).trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/^```json/, '').replace(/```$/, '').trim();
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```/, '').replace(/```$/, '').trim();
+  }
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const firstArray = cleaned.indexOf('[');
+    if (firstArray < 0) return null;
+    const candidate = cleaned.slice(firstArray);
+    const lastBracket = candidate.lastIndexOf(']');
+    if (lastBracket < 0) return null;
+    try {
+      return JSON.parse(candidate.slice(0, lastBracket + 1));
+    } catch {
+      return null;
+    }
+  }
+}
 
 /** Keep assembly Kanban in sync: hired marketplace project → microJob.hiredUser + Assigned when still Open. */
 async function syncMicroJobsWithMarketplaceProjects(parentProjectId) {
@@ -236,14 +261,14 @@ router.post('/enterprise-projects/:id/suggest-microjobs', async (req, res) => {
       return res.status(400).json({ message: 'No RFP text available to analyze' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     
     if (!apiKey) {
-      return res.status(500).json({ message: 'GEMINI_API_KEY not configured on server' });
+      return res.status(500).json({ message: 'GEMINI_API_KEY/GOOGLE_API_KEY not configured on server' });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
     const prompt = `You are an expert technical project manager and software architect.
 I have a Product Requirements Document (PRD) from a client for a new project. 
@@ -262,17 +287,35 @@ Return ONLY a valid JSON array of objects with the exact keys: 'title', 'descrip
 PRD TEXT:
 ${project.originalRfpText.slice(0, 30000)}`;
 
-    const result = await model.generateContent(prompt);
-    let text = result.response.text().trim();
-
-    // Clean up potential markdown blocks if the AI still outputs them despite instructions
-    if (text.startsWith('\`\`\`json')) {
-      text = text.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
-    } else if (text.startsWith('\`\`\`')) {
-      text = text.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
+    let suggestions = null;
+    let lastErr = null;
+    for (const modelName of modelsToTry) {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const result = await model.generateContent(prompt);
+          const text = result?.response?.text?.()?.trim() || '';
+          suggestions = safeJsonParse(text);
+          if (Array.isArray(suggestions)) break;
+          throw new Error('AI returned invalid suggestions format');
+        } catch (err) {
+          lastErr = err;
+          const transient = isTransientGeminiError(err);
+          if (!transient || attempt === 3) break;
+          await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** (attempt - 1))));
+        }
+      }
+      if (Array.isArray(suggestions)) break;
     }
 
-    const suggestions = JSON.parse(text);
+    if (!Array.isArray(suggestions)) {
+      const groqText = await generateWithGroq(prompt);
+      if (groqText) suggestions = safeJsonParse(groqText);
+    }
+
+    if (!Array.isArray(suggestions)) {
+      throw (lastErr || new Error('Failed to generate suggestions'));
+    }
     
     // Ensure all attributes exist safely
     const normalized = suggestions.map(s => ({

@@ -11,19 +11,30 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const config = {
-  host: 'imap.gmail.com',
-  port: 993,
-  secure: true,
+  host: process.env.IMAP_HOST || 'imap.gmail.com',
+  port: Number(process.env.IMAP_PORT || 993),
+  secure: String(process.env.IMAP_SECURE || 'true').toLowerCase() !== 'false',
   auth: {
     user: process.env.IMAP_USER || 'erfindenrfpsystems@gmail.com',
-    pass: process.env.IMAP_PASSWORD,
+    pass: String(process.env.IMAP_PASSWORD || '').replace(/\s+/g, ''),
   },
   logger: false, // Set to true for debugging IMAP connection
 };
 
 process.on('uncaughtException', (err) => {
-  console.error('\n[Listener Recovered] A network timeout or IMAP connection drop occurred:', err.message);
-  console.error('The script will attempt to remain alive, but if you stop receiving emails, please restart it.\n');
+  const msg = String(err?.message || '');
+  const isImapLike = msg.includes('NoConnection')
+    || msg.toLowerCase().includes('imap')
+    || msg.toLowerCase().includes('mailbox')
+    || msg.toLowerCase().includes('timeout');
+  if (isImapLike) {
+    console.error('\n[Listener Recovered] IMAP/network issue:', msg);
+    console.error('Listener will auto-reconnect.\n');
+    return;
+  }
+  // Do not mask unrelated fatal errors (e.g. EADDRINUSE on API server).
+  console.error('\n[Fatal] Uncaught exception outside IMAP listener:', msg);
+  process.exit(1);
 });
 
 if (!config.auth.pass || config.auth.pass === 'your_16_char_app_password') {
@@ -31,37 +42,83 @@ if (!config.auth.pass || config.auth.pass === 'your_16_char_app_password') {
 }
 
 const client = new ImapFlow(config);
+let isConnected = false;
+let connectInFlight = null;
+
+async function ensureConnected() {
+  if (client.usable && isConnected) return;
+  if (connectInFlight) {
+    await connectInFlight;
+    return;
+  }
+  connectInFlight = (async () => {
+    if (client.usable) {
+      await client.mailboxOpen('INBOX');
+      isConnected = true;
+      return;
+    }
+    await client.connect();
+    await client.mailboxOpen('INBOX');
+    isConnected = true;
+    console.log(`Connected to IMAP as ${config.auth.user}`);
+  })();
+  try {
+    await connectInFlight;
+  } finally {
+    connectInFlight = null;
+  }
+}
 
 client.on('error', err => {
   console.log('IMAP Connection Error (Network dropout):', err.message);
+  isConnected = false;
 });
 
 client.on('close', () => {
-  console.log('IMAP Connection Closed. Restart the script if needed.');
+  isConnected = false;
+  console.log('IMAP Connection Closed. Will auto-reconnect on next poll.');
 });
 
 async function startListener() {
-  await client.connect();
-  console.log(`Connected to IMAP as ${config.auth.user}`);
-  
-  // Select inbox and wait for IDLE mode
-  let lock = await client.getMailboxLock('INBOX');
+  await ensureConnected();
   console.log('Listening for incoming PRD emails...');
-  
+
+  let processing = false;
+  const runProcess = async () => {
+    if (processing) return;
+    processing = true;
+    try {
+      await ensureConnected();
+      await processUnreadEmails();
+    } catch (err) {
+      if (err?.code === 'NoConnection') {
+        isConnected = false;
+        console.warn('IMAP disconnected during processing. Reconnecting...');
+        await ensureConnected();
+        return;
+      }
+      throw err;
+    } finally {
+      processing = false;
+    }
+  };
+
   try {
-    // Process existing UNPREAD emails immediately
-    await processUnreadEmails();
+    // Process existing unread emails immediately
+    await runProcess();
 
     // Listen for new messages arriving
     client.on('exists', async () => {
       console.log('New email detected! Processing...');
-      await processUnreadEmails();
+      await runProcess();
     });
 
+    // Poll fallback in case IMAP IDLE notifications are missed.
+    setInterval(() => {
+      runProcess().catch((err) => console.error('Poll processing error:', err.message));
+    }, Number(process.env.IMAP_POLL_INTERVAL_MS || 30000));
   } catch (err) {
     console.error('Listener Error:', err);
-  } finally {
-    // The script is designed to run forever, so we generally don't release the lock unless shutting down
   }
 }
 
@@ -130,11 +187,26 @@ async function processUnreadEmails() {
           console.log(`Success! EnterpriseProject ID: ${res.data.project._id}`);
         }
 
-        // Always mark read after a successful intake so restarts / re-fetch do not recreate rows
-        await client.messageFlagsAdd(message.uid, ['\\Seen'], { uid: true });
-        console.log('Email marked as read.');
+        // Always mark read after successful intake/dedup so restarts do not reprocess.
+        // Some IMAP servers can ignore add; fallback to explicit set and verify.
+        try {
+          await client.messageFlagsAdd(message.uid, ['\\Seen'], { uid: true });
+        } catch (flagAddErr) {
+          console.warn(`FlagsAdd failed for uid=${message.uid}: ${flagAddErr.message}. Trying flagsSet fallback...`);
+          await client.messageFlagsSet(message.uid, ['\\Seen'], { uid: true });
+        }
+        const verify = await client.fetchOne(message.uid, { flags: true }, { uid: true });
+        const seen = Array.isArray(verify?.flags) && verify.flags.includes('\\Seen');
+        if (!seen) {
+          console.warn(`Warning: uid=${message.uid} still not marked as Seen after update.`);
+        } else {
+          console.log(`Email marked as read (uid=${message.uid}).`);
+        }
       } catch (postErr) {
-        console.error(`Failed to post RFP intake (${apiBase}). Set RFP_INTAKE_BASE_URL or PORT in .env.`, postErr.message);
+        console.error(
+          `Failed processing uid=${message.uid} (${apiBase}). Keeping unread for retry.`,
+          postErr.message
+        );
       }
       console.log(`======================================\n`);
     }
