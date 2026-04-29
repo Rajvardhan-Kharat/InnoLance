@@ -21,8 +21,12 @@ export default function Navbar() {
           <Link to="/projects">Find Work</Link>
           {user ? (
             <>
-              <Link to="/dashboard">My Projects</Link>
-              {user.role === 'client' && <Link to="/post-project">Post Project</Link>}
+              <Link to="/myprojects">My Projects</Link>
+              {user.role === 'client' && (
+                <>
+                  <Link to="/post-project">Post Project</Link>
+                </>
+              )}
               <Link to="/proposals">Proposals</Link>
               <Link to="/messages">Messages</Link>
               <Notifications />
@@ -30,6 +34,7 @@ export default function Navbar() {
                 <>
                   <Link to="/admin">Admin</Link>
                   <Link to="/admin/analytics">Analytics</Link>
+                  <Link to="/admin/enterprise-rfp" className="nav-accent">Enterprise RFP</Link>
                 </>
               )}
               <ProfileMenu />

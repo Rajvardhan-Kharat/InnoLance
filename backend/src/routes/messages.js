@@ -30,15 +30,17 @@ async function resolveConversation({ me, otherUserId, projectId }) {
   const q = {
     participants: { $all: [me, otherUserId] },
     $expr: { $eq: [{ $size: '$participants' }, 2] },
+    isGroup: { $ne: true } // ensure it's not a group chat
   };
-  if (projectId) q.project = projectId;
-  else q.project = null;
+  
+  // No longer separating DMs by projectId.
+  // One conversation thread per unique pair of users.
 
   let convo = await Conversation.findOne(q);
   if (!convo) {
     convo = await Conversation.create({
       participants: [me, otherUserId],
-      project: projectId || null,
+      project: null, // Always null for deduplicated DMs
     });
   }
   return convo;
@@ -84,6 +86,60 @@ router.post('/conversations', protect, async (req, res) => {
       .populate('participants', 'firstName lastName avatar companyName')
       .populate('project', 'title status');
     res.status(201).json({ conversation: populated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/conversations/group', protect, async (req, res) => {
+  try {
+    const { name, participantIds, projectId } = req.body;
+    if (!name || !participantIds || !Array.isArray(participantIds)) {
+      return res.status(400).json({ message: 'Name and participantIds array required' });
+    }
+
+    const participants = [...new Set([...participantIds, req.user._id.toString()])];
+
+    let normalizedProjectId = null;
+    if (projectId) {
+      const exists = await Project.findById(projectId).select('_id').lean();
+      if (!exists) return res.status(404).json({ message: 'Project not found' });
+      normalizedProjectId = projectId;
+    }
+
+    const convo = await Conversation.create({
+      isGroup: true,
+      name,
+      participants,
+      admins: [req.user._id],
+      project: normalizedProjectId,
+    });
+
+    const populated = await Conversation.findById(convo._id)
+      .populate('participants', 'firstName lastName avatar companyName')
+      .populate('admins', 'firstName lastName avatar');
+      
+    res.status(201).json({ conversation: populated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete('/conversations/:id', protect, async (req, res) => {
+  try {
+    const convo = await Conversation.findById(req.params.id);
+    if (!convo) return res.status(404).json({ message: 'Conversation not found' });
+    if (!convo.participants.some((p) => String(p) === String(req.user._id))) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    // Delete all messages within the conversation
+    await Message.deleteMany({ conversation: convo._id });
+    
+    // Delete the conversation itself
+    await Conversation.findByIdAndDelete(convo._id);
+
+    res.json({ message: 'Conversation deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

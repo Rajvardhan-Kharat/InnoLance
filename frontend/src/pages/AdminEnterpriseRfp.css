@@ -1,0 +1,391 @@
+/* ═══════════════════════════════════════════════════════════════
+   AdminEnterpriseRfp.css  –  Premium Enterprise RFP Dashboard
+═══════════════════════════════════════════════════════════════ */
+
+.ent-rfp-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+.ent-rfp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 36px;
+  flex-wrap: wrap;
+}
+
+.ent-rfp-header h1 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--text) 0%, #6366f1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 6px;
+  letter-spacing: -0.02em;
+}
+
+.ent-rfp-header p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+/* ── Stats Cards ─────────────────────────────────────────────── */
+.ent-rfp-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.ent-stat-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 160ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.ent-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--border);
+  border-radius: 3px 3px 0 0;
+}
+
+.ent-stat-card.submitted::before  { background: #6366f1; }
+.ent-stat-card.in-progress::before { background: #3b82f6; }
+.ent-stat-card.completed::before  { background: #16a34a; }
+
+.ent-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.ent-stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+}
+
+.ent-stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ── Filters ─────────────────────────────────────────────────── */
+.ent-rfp-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  align-items: center;
+}
+
+.ent-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+
+.ent-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
+.ent-search-input {
+  width: 100%;
+  padding: 10px 14px 10px 38px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.ent-search-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.ent-status-filter {
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 180px;
+}
+
+/* ── Table ────────────────────────────────────────────────────── */
+.ent-rfp-table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.ent-rfp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ent-rfp-table thead {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.ent-rfp-table th {
+  padding: 14px 16px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: left;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ent-rfp-table td {
+  padding: 14px 16px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.ent-rfp-row {
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.ent-rfp-row:hover,
+.ent-rfp-row.expanded {
+  background: rgba(99, 102, 241, 0.04);
+}
+
+.ent-rfp-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Client Cell ─────────────────────────────────────────────── */
+.ent-client-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ent-client-avatar {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ent-client-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.ent-client-email {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ── Reference Code ──────────────────────────────────────────── */
+.ent-ref {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: var(--bg);
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+}
+
+/* ── Actions ─────────────────────────────────────────────────── */
+.ent-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.ent-action-btn {
+  font-size: 0.78rem !important;
+  padding: 5px 10px !important;
+  white-space: nowrap;
+}
+
+.ent-btn-delete {
+  padding: 6px 8px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--error);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 140ms ease;
+}
+
+.ent-btn-delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.ent-btn-confirm-delete {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--error);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: opacity 140ms ease;
+}
+
+.ent-btn-confirm-delete:hover { opacity: 0.85; }
+
+/* ── Expanded Detail Row ─────────────────────────────────────── */
+.ent-detail-row td {
+  padding: 0 !important;
+  border-top: 2px solid rgba(99, 102, 241, 0.25);
+}
+
+.ent-detail-content {
+  padding: 24px;
+  background: rgba(99, 102, 241, 0.03);
+  animation: slideDown 200ms ease both;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ent-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .ent-detail-grid { grid-template-columns: 1fr; }
+}
+
+.ent-detail-section h4,
+.ent-detail-meta h4 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+.ent-rfp-text {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 360px;
+  overflow-y: auto;
+  line-height: 1.65;
+  font-family: var(--font-sans);
+}
+
+.ent-detail-meta {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.ent-meta-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ent-meta-table td {
+  padding: 7px 0;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.ent-meta-table td:first-child {
+  color: var(--text-muted);
+  width: 40%;
+  font-weight: 500;
+}
+
+.ent-meta-table td:last-child { color: var(--text); }
+
+.ent-meta-table tr:last-child td { border-bottom: none; }
+
+/* ── Loading / Empty ─────────────────────────────────────────── */
+.ent-rfp-loading,
+.ent-rfp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.ent-rfp-empty h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.ent-rfp-empty p { color: var(--text-muted); font-size: 0.9rem; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.ent-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-bottom: 16px;
+}

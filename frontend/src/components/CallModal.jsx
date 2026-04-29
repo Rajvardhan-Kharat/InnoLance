@@ -48,6 +48,11 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
     };
     cleanupRef.current = cleanup;
 
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError('WebRTC is not supported in this browser.');
+      return;
+    }
+
     navigator.mediaDevices.getUserMedia({ video: callType !== 'audio', audio: true })
       .then((stream) => {
         streamRef.current = stream;
@@ -56,11 +61,16 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
         return pc.createOffer();
       })
       .then((offer) => {
-        pc.setLocalDescription(offer);
+        return pc.setLocalDescription(offer).then(() => offer);
+      })
+      .then((offer) => {
         socket.emit('call:offer', { toUserId: otherUserId, offer, callType });
         socket.emit('webrtc_offer', { toUserId: otherUserId, offer, callType });
       })
-      .catch(() => setError('Camera/mic access denied'));
+      .catch((err) => {
+        console.error('Call initialization error:', err);
+        setError('Camera/mic access denied, or device in use.');
+      });
 
     const onAnswer = (data) => {
       if (data.fromUserId !== otherUserId) return;
@@ -120,6 +130,11 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       }
     };
 
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError('WebRTC is not supported in this browser.');
+      return;
+    }
+
     navigator.mediaDevices.getUserMedia({ video: callType !== 'audio', audio: true })
       .then((stream) => {
         streamRef.current = stream;
@@ -129,12 +144,17 @@ export default function CallModal({ mode, otherUserId, otherName, offer: initial
       })
       .then(() => pc.createAnswer())
       .then((answer) => {
-        pc.setLocalDescription(answer);
+        return pc.setLocalDescription(answer).then(() => answer);
+      })
+      .then((answer) => {
         socket.emit('call:answer', { toUserId: otherUserId, answer });
         socket.emit('webrtc_answer', { toUserId: otherUserId, answer });
         setStatus('connected');
       })
-      .catch(() => setError('Failed to accept call'));
+      .catch((err) => {
+        console.error('Call accept error:', err);
+        setError('Failed to accept call or access media.');
+      });
 
     const onIce = (data) => {
       if (data.fromUserId !== otherUserId) return;

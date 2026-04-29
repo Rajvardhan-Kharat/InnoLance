@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import StripePaymentModal from '../components/StripePaymentModal';
 import './ProjectDetail.css';
 
@@ -9,6 +10,7 @@ export default function ProjectDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { show: showToast } = useToast();
   const [project, setProject] = useState(null);
   const [proposalCount, setProposalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -202,7 +204,7 @@ export default function ProjectDetail() {
       const { data } = await api.get('/reviews', { params: { projectId: id } });
       setReviews(data.reviews || []);
       setReviewForm({ rating: 5, comment: '' });
-      alert('Review submitted.');
+      showToast('Review submitted successfully.', 'success');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to submit review');
     } finally {
@@ -253,7 +255,7 @@ export default function ProjectDetail() {
       const { data } = await api.get(`/projects/${id}`);
       setProject(data.project);
       setEscrowSubmit({ text: '', links: '' });
-      alert('Submitted for client review.');
+      showToast('Submitted for client review.', 'success');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to submit');
     } finally {
@@ -267,7 +269,7 @@ export default function ProjectDetail() {
     try {
       const { data } = await api.post(`/payments/escrow/release/${id}`);
       setProject(data.project);
-      alert('Payment released. Project marked completed.');
+      showToast('Payment released. Project marked completed.', 'success');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to release');
     } finally {
@@ -293,6 +295,7 @@ export default function ProjectDetail() {
       setProject(data.project);
       setRevisionModalOpen(false);
       setRevisionNote('');
+      showToast('Revision request sent to the freelancer.', 'success');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed');
     } finally {
@@ -352,7 +355,7 @@ export default function ProjectDetail() {
       }
       setProposalForm({ coverLetter: '', bidAmount: '', estimatedDays: '', resumeFile: null });
       setProposalCount((c) => c + 1);
-      alert('Proposal submitted successfully.');
+      showToast('Proposal submitted successfully! Good luck!', 'success');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to submit proposal');
     } finally {

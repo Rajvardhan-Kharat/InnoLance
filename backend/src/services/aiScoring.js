@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { generateWithGroq, isTransientGeminiError } from './llmFallback.js';
+import { generateWithFallbackChain, isTransientGeminiError } from './llmFallback.js';
 
 function safeJsonParse(text) {
   if (!text) return null;
@@ -41,7 +41,7 @@ export async function evaluateProposal(projectTitle, projectDescription, proposa
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
     const prompt = `You are a strict, expert technical recruiter and project manager.
 A freelancer has submitted a proposal for the following project:
@@ -81,8 +81,8 @@ Return ONLY a valid JSON object with the exact keys: 'score' (an integer number 
     }
 
     if (!parsed) {
-      const groqText = await generateWithGroq(prompt);
-      if (groqText) parsed = safeJsonParse(groqText);
+      const fallbackText = await generateWithFallbackChain(prompt);
+      if (fallbackText) parsed = safeJsonParse(fallbackText);
     }
 
     if (!parsed || typeof parsed !== 'object') {

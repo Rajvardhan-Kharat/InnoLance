@@ -10,7 +10,7 @@ import CmsPage from '../models/CmsPage.js';
 import ProjectAssessment from '../models/ProjectAssessment.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { generateWithGroq, isTransientGeminiError } from '../services/llmFallback.js';
+import { generateWithFallbackChain, isTransientGeminiError } from '../services/llmFallback.js';
 
 const router = express.Router();
 
@@ -252,83 +252,125 @@ router.get('/enterprise-projects/:id', async (req, res) => {
   }
 });
 
-// Auto-generate microjobs from PRD text via Gemini AI
+// Auto-generate WBS microjobs from PRD text via AI (with multi-provider fallback)
 router.post('/enterprise-projects/:id/suggest-microjobs', async (req, res) => {
   try {
+    const { aiInstructions } = req.body || {};
     const project = await EnterpriseProject.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'EnterpriseProject not found' });
     if (!project.originalRfpText) {
       return res.status(400).json({ message: 'No RFP text available to analyze' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    
-    if (!apiKey) {
-      return res.status(500).json({ message: 'GEMINI_API_KEY/GOOGLE_API_KEY not configured on server' });
-    }
+    const totalBudget = Number(project.overallTotalBudget) || 0;
+    // Reserve 15% platform margin — freelancers share the rest
+    const freelancerBudget = Math.round(totalBudget * 0.85);
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    const prompt = `You are a Senior Software Delivery Manager and Systems Architect working on a professional freelancing platform.
 
-    const prompt = `You are an expert technical project manager and software architect.
-I have a Product Requirements Document (PRD) from a client for a new project. 
-The total budget for this project is roughly ${project.overallTotalBudget || 'unknown'}.
+I have a client PRD/RFP for a software project. Total client budget: ₹${totalBudget} (INR).
+After a 15% platform margin, ₹${freelancerBudget} is available to allocate across all freelancer tasks.
 
-I need to break this large project down into a series of smaller, distinct "micro-deliverables" to be posted on a freelancing platform.
-Analyze the following PRD text and generate these micro-deliverables. 
-For each, provide:
-- A descriptive title
-- A comprehensive description of the work, constraints, and acceptance criteria
-- A comma-separated list of required technologies/frameworks
-- An estimated allocated budget (ensure the sum roughly matches the total budget, but do not exceed it).
+Break this project into professional Work Breakdown Structure (WBS) micro-deliverables that COVER ALL PHASES of a real software delivery lifecycle. You MUST include tasks for EVERY role needed, such as:
+- Project Manager / Scrum Master (planning, sprints, stakeholder communication)
+- UX/UI Designer (wireframes, prototypes, design system, user flows)
+- Frontend Developer(s) — break into logical modules (auth module, dashboard, user-facing features, admin panel, etc.)
+- Backend Developer(s) — break into logical services (API design, auth service, business logic, third-party integrations, etc.)
+- Database Architect / DBA (schema design, indexing, migrations)
+- QA Engineer / Tester (test plans, unit tests, integration tests, UAT)
+- DevOps / Infrastructure Engineer (CI/CD pipeline, Docker, cloud deployment, environment setup)
+- Security Reviewer (security audit, penetration testing checklist, OWASP compliance)
+- Technical Writer (API docs, user manual, deployment guide)
 
-Return ONLY a valid JSON array of objects with the exact keys: 'title', 'description', 'requiredTechStackText', 'allocatedBudget'. No markdown formatting blocks like \`\`\`json, just the raw JSON text.
+For each micro-deliverable:
+- Title: clear, professional (e.g. "Backend: Authentication & JWT Service")
+- Description: detailed scope, acceptance criteria, and what is NOT included
+- requiredTechStackText: comma-separated relevant technologies
+- allocatedBudget: INR amount — must be realistic for the role. Ensure the SUM of all allocatedBudgets equals approximately ₹${freelancerBudget} (do NOT exceed this). Budget should be weighted: backend/frontend devs get the most, PM/designer/QA get proportional shares. ALWAYS round the budget to the nearest ₹1000 or ₹500 (e.g., 5000, 12500, 25000). Never output exact random numbers like 4378.
 
-PRD TEXT:
-${project.originalRfpText.slice(0, 30000)}`;
+IMPORTANT rules:
+1. Generate between 4 and 8 tasks minimum — focus on substantial, epic-level tasks rather than many small ones. Do NOT generate excessive tasks (e.g., 12+ tasks).
+2. Never generate just 1 frontend and 1 backend task — break each into multiple focused deliverables.
+3. Sum of all allocatedBudget values must approximately equal ₹${freelancerBudget}.
+4. Return ONLY a valid JSON array. No markdown. No explanation. Raw JSON only.
+
+${aiInstructions ? `ADDITIONAL CLIENT INSTRUCTIONS FOR RE-GENERATION:\n"""\n${aiInstructions}\n"""\nMake sure to strictly follow the above additional instructions while generating the WBS.\n` : ''}
+
+JSON format for each item:
+{ "title": string, "description": string, "requiredTechStackText": string, "allocatedBudget": number }
+
+PRD/RFP TEXT:
+${project.originalRfpText.slice(0, 28000)}`;
 
     let suggestions = null;
     let lastErr = null;
-    for (const modelName of modelsToTry) {
-      const model = genAI.getGenerativeModel({ model: modelName });
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          const result = await model.generateContent(prompt);
-          const text = result?.response?.text?.()?.trim() || '';
-          suggestions = safeJsonParse(text);
-          if (Array.isArray(suggestions)) break;
-          throw new Error('AI returned invalid suggestions format');
-        } catch (err) {
-          lastErr = err;
-          const transient = isTransientGeminiError(err);
-          if (!transient || attempt === 3) break;
-          await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** (attempt - 1))));
+
+    // 1. Try Gemini first
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (apiKey) {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      for (const modelName of modelsToTry) {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const result = await model.generateContent(prompt);
+            const text = result?.response?.text?.()?.trim() || '';
+            const parsed = safeJsonParse(text);
+            if (Array.isArray(parsed) && parsed.length > 0) { suggestions = parsed; break; }
+          } catch (err) {
+            lastErr = err;
+            if (!isTransientGeminiError(err) || attempt === 3) break;
+            await new Promise((r) => setTimeout(r, 600 * (2 ** (attempt - 1))));
+          }
         }
+        if (Array.isArray(suggestions)) break;
       }
-      if (Array.isArray(suggestions)) break;
     }
 
+    // 2. Fallback chain (Groq → OpenRouter → HuggingFace → Cohere)
     if (!Array.isArray(suggestions)) {
-      const groqText = await generateWithGroq(prompt);
-      if (groqText) suggestions = safeJsonParse(groqText);
+      const fallbackText = await generateWithFallbackChain(prompt);
+      if (fallbackText) suggestions = safeJsonParse(fallbackText);
     }
 
-    if (!Array.isArray(suggestions)) {
-      throw (lastErr || new Error('Failed to generate suggestions'));
+    if (!Array.isArray(suggestions) || suggestions.length === 0) {
+      throw (lastErr || new Error('All AI providers failed to generate WBS suggestions'));
     }
-    
-    // Ensure all attributes exist safely
-    const normalized = suggestions.map(s => ({
-      title: s.title || 'Untitled Task',
-      description: s.description || '',
-      requiredTechStackText: s.requiredTechStackText || '',
-      allocatedBudget: Number(s.allocatedBudget) || 0
+
+    // Normalize & validate budget sum — scale if over limit
+    let normalized = suggestions.map(s => ({
+      title: String(s.title || 'Untitled Task').trim(),
+      description: String(s.description || '').trim(),
+      requiredTechStackText: String(s.requiredTechStackText || '').trim(),
+      allocatedBudget: Math.max(0, Number(s.allocatedBudget) || 0),
     }));
 
-    res.json({ suggestions: normalized });
+    // Auto-scale budgets ONLY if AI went over the freelancer budget
+    if (freelancerBudget > 0) {
+      const rawSum = normalized.reduce((acc, t) => acc + t.allocatedBudget, 0);
+      if (rawSum > freelancerBudget) {
+        const scale = freelancerBudget / rawSum;
+        normalized = normalized.map(t => ({
+          ...t,
+          // Scale then snap to nearest ₹500 for clean numbers
+          allocatedBudget: Math.round((t.allocatedBudget * scale) / 500) * 500,
+        }));
+        // Fix rounding drift on last item so total still equals freelancerBudget
+        const newSum = normalized.reduce((acc, t) => acc + t.allocatedBudget, 0);
+        const drift = freelancerBudget - newSum;
+        if (drift !== 0 && normalized.length > 0) {
+          // Snap the drift-adjusted last item to nearest 500
+          const adj = normalized[normalized.length - 1].allocatedBudget + drift;
+          normalized[normalized.length - 1].allocatedBudget = Math.round(adj / 500) * 500;
+        }
+      }
+    }
+
+    res.json({ suggestions: normalized, platformMargin: totalBudget - freelancerBudget, freelancerBudget });
   } catch (err) {
-    console.error('Gemini Suggest Error:', err);
-    res.status(500).json({ message: err.message || 'Failed to generate suggestions' });
+    console.error('WBS Suggest Error:', err);
+    res.status(500).json({ message: err.message || 'Failed to generate WBS suggestions' });
   }
 });
 

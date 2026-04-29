@@ -17,6 +17,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminProjectBuilder from './pages/AdminProjectBuilder';
 import AdminAssemblyDashboard from './pages/AdminAssemblyDashboard';
 import AdminAnalyticsDashboard from './pages/AdminAnalyticsDashboard';
+import AdminEnterpriseRfp from './pages/AdminEnterpriseRfp';
 import CmsPage from './pages/CmsPage';
 import Wallet from './pages/Wallet';
 import ProjectAssessment from './pages/ProjectAssessment';
@@ -32,7 +33,7 @@ function PrivateRoute({ children }) {
 function PublicOnly({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="loading-screen">Loading...</div>;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/myprojects" replace />;
   return children;
 }
 
@@ -58,7 +59,7 @@ export default function App() {
         <Route path="projects/:id/assessment" element={<PrivateRoute><ProjectAssessment /></PrivateRoute>} />
         <Route path="profile/:id" element={<FreelancerProfile />} />
         <Route path="page/:slug" element={<CmsPage />} />
-        <Route path="dashboard" element={<PrivateRoute><MyProjects /></PrivateRoute>} />
+        <Route path="myprojects" element={<PrivateRoute><MyProjects /></PrivateRoute>} />
         <Route path="post-project" element={<PrivateRoute><PostProject /></PrivateRoute>} />
         <Route path="proposals" element={<PrivateRoute><Proposals /></PrivateRoute>} />
         <Route path="messages" element={<PrivateRoute><Messages /></PrivateRoute>} />
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="wallet" element={<PrivateRoute><Wallet /></PrivateRoute>} />
         <Route path="admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         <Route path="admin/analytics" element={<AdminRoute><AdminAnalyticsDashboard /></AdminRoute>} />
+        <Route path="admin/enterprise-rfp" element={<AdminRoute><AdminEnterpriseRfp /></AdminRoute>} />
         <Route path="admin/project-builder/:projectId" element={<AdminRoute><AdminProjectBuilder /></AdminRoute>} />
         <Route path="admin/assembly/:projectId" element={<AdminRoute><AdminAssemblyDashboard /></AdminRoute>} />
       </Route>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import { useAuth } from './AuthContext';
 
 const SocketContext = createContext(null);
 
@@ -15,10 +16,21 @@ function socketBaseUrl() {
 
 export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) {
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+      }
+      return;
+    }
+    
+    // Disconnect previous socket if any (in case of re-login)
+    if (socket) socket.disconnect();
+
     const url = socketBaseUrl();
     const s = io(url, {
       path: '/socket.io',
@@ -28,11 +40,12 @@ export function SocketProvider({ children }) {
     s.on('connect', () => {});
     s.on('connect_error', () => {});
     setSocket(s);
+    
     return () => {
       s.disconnect();
       setSocket(null);
     };
-  }, []);
+  }, [user]); // Re-connect whenever user authentication changes
 
   return (
     <SocketContext.Provider value={socket}>

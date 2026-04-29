@@ -64,3 +64,18 @@
   color: var(--text);
   background: var(--surface-hover);
 }
+
+/* Accent nav link (Enterprise RFP in admin bar) */
+.nav-links a.nav-accent {
+  color: #6366f1;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.08);
+  padding: 5px 12px;
+  border-radius: 20px;
+  transition: all 140ms ease;
+}
+
+.nav-links a.nav-accent:hover {
+  background: rgba(99, 102, 241, 0.15);
+  color: #4f46e5;
+}

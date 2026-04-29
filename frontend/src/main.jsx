@@ -6,6 +6,8 @@ import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { WalletProvider } from './context/WalletContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
+import './context/Toast.css';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -15,7 +17,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <AuthProvider>
           <WalletProvider>
             <SocketProvider>
-              <App />
+              <ToastProvider>
+                <App />
+              </ToastProvider>
             </SocketProvider>
           </WalletProvider>
         </AuthProvider>

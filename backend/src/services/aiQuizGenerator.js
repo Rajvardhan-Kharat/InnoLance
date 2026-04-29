@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { generateWithGroq, isTransientGeminiError } from './llmFallback.js';
+import { generateWithFallbackChain, isTransientGeminiError } from './llmFallback.js';
 
 function safeJsonParse(text) {
   if (!text) return null;
@@ -121,15 +121,16 @@ Return ONLY a valid JSON array (no markdown, no explanations) with the exact key
   }
 
   if (!parsed) {
-    const groqText = await generateWithGroq(prompt);
-    if (groqText) parsed = safeJsonParse(groqText);
+    // Multi-provider fallback chain
+    const fallbackText = await generateWithFallbackChain(prompt);
+    if (fallbackText) parsed = safeJsonParse(fallbackText);
   }
 
-  if (!parsed) throw (lastErr || new Error('AI quiz generation failed'));
+  if (!parsed) throw (lastErr || new Error('AI quiz generation failed — all providers exhausted'));
 
   const validated = validateQuestions(parsed);
-  if (!validated || validated.length !== safeCount) {
-    throw new Error('AI quiz generation failed validation');
+  if (!validated || validated.length === 0) {
+    throw new Error('AI quiz generation failed validation — no valid questions returned');
   }
 
   // Ensure options length is exactly 4 (generator prompt requests it, but validate anyway).

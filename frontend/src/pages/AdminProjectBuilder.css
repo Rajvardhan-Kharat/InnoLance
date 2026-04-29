@@ -1,13 +1,28 @@
-.admin-project-builder h1 {
-  margin-bottom: 8px;
+/* ─── AdminProjectBuilder.css ─────────────────────────────────────────────── */
+
+.admin-project-builder {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 100px;
 }
 
+.admin-project-builder h1 {
+  font-size: 1.7rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────────── */
 .builder-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .builder-subtitle {
@@ -15,83 +30,106 @@
   align-items: center;
   gap: 10px;
   color: var(--text-muted);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
+  flex-wrap: wrap;
+  margin-top: 4px;
 }
 
-.builder-subtitle strong {
-  color: var(--text);
-  font-weight: 600;
-}
+.builder-subtitle strong { color: var(--text); font-weight: 600; }
+.builder-subtitle .dot   { opacity: 0.4; }
 
-.builder-subtitle .dot {
-  opacity: 0.6;
-}
-
+/* ─── Cards ───────────────────────────────────────────────────────────────── */
 .builder-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 16px;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 18px;
+  transition: box-shadow 0.2s;
+}
+
+.builder-card:hover {
+  box-shadow: 0 4px 20px rgba(99,102,241,0.08);
 }
 
 .builder-card h2 {
-  font-size: 1rem;
-  color: var(--text-muted);
-  margin-bottom: 12px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
+/* ─── Error banner ────────────────────────────────────────────────────────── */
 .builder-error {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  color: var(--error);
-  border-radius: var(--radius);
-  padding: 12px 14px;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.35);
+  color: #ef4444;
+  border-radius: 10px;
+  padding: 12px 16px;
   margin-bottom: 16px;
+  font-size: 0.9rem;
 }
 
+/* ─── RFP text excerpt ────────────────────────────────────────────────────── */
 .rfp-text {
   white-space: pre-wrap;
   word-break: break-word;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
-  max-height: 260px;
+  border-radius: 10px;
+  padding: 14px;
+  max-height: 240px;
   overflow: auto;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.6;
 }
 
+/* ─── Card head ───────────────────────────────────────────────────────────── */
 .builder-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
+/* ─── Budget chip ─────────────────────────────────────────────────────────── */
 .budget-chip {
-  padding: 6px 10px;
+  padding: 6px 14px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg);
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .budget-chip.over {
-  border-color: rgba(234, 179, 8, 0.6);
-  color: var(--warning);
-  background: rgba(234, 179, 8, 0.12);
+  border-color: rgba(239,68,68,0.5);
+  color: #ef4444;
+  background: rgba(239,68,68,0.08);
 }
 
+/* ─── Task card ───────────────────────────────────────────────────────────── */
 .task-card {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
+  border-left-width: 4px;
+  border-radius: 12px;
+  padding: 18px;
   background: var(--surface);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.task-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
 }
 
 .task-card-head {
@@ -99,18 +137,20 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .task-card h3 {
-  font-size: 1rem;
+  font-size: 0.98rem;
+  font-weight: 700;
   margin: 0;
 }
 
+/* ─── Task grid ───────────────────────────────────────────────────────────── */
 .task-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 14px;
 }
 
 .field {
@@ -124,8 +164,11 @@
 }
 
 .field label {
-  font-size: 0.9rem;
+  font-size: 0.83rem;
+  font-weight: 600;
   color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .field input,
@@ -133,57 +176,89 @@
   width: 100%;
   padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 8px;
   background: var(--bg);
   color: var(--text);
+  font-size: 0.93rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
 }
 
 .hint {
-  font-size: 0.8rem;
+  font-size: 0.77rem;
   color: var(--text-muted);
+  margin-top: 2px;
 }
 
-.muted {
-  color: var(--text-muted);
+.muted { color: var(--text-muted); }
+
+/* ─── Spinner ─────────────────────────────────────────────────────────────── */
+.builder-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(99,102,241,0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  display: inline-block;
 }
 
-/* Button styles (local, to avoid depending on global button classes) */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 14px;
-  border-radius: var(--radius);
+  padding: 10px 18px;
+  border-radius: 9px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
   text-decoration: none;
+  transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
 }
+
+.btn:hover   { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.btn:active  { transform: translateY(0); }
 
 .btn-primary {
   border-color: transparent;
-  background: var(--accent);
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
   color: white;
 }
 
-.btn-primary:hover {
-  background: var(--accent-hover);
+.btn-primary:hover { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+
+.btn-ghost   { background: transparent; border-color: var(--border); }
+.btn-ghost:hover { background: var(--bg); }
+
+.btn-sm      { padding: 6px 12px; font-size: 0.83rem; }
+
+.btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
-.btn-ghost {
-  background: transparent;
-}
-
-.btn-sm {
-  padding: 6px 10px;
-  font-size: 0.85rem;
-}
-
+/* ─── Sticky publish bar ──────────────────────────────────────────────────── */
 .builder-sticky {
   position: sticky;
   bottom: 0;
-  padding: 12px 0 0;
+  padding: 14px 0 0;
+  z-index: 10;
 }
 
 .builder-sticky-inner {
@@ -193,31 +268,41 @@
   gap: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 14px;
+  border-radius: 14px;
+  padding: 14px 20px;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.08);
+  backdrop-filter: blur(10px);
 }
 
 .sticky-meta {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.93rem;
+  font-weight: 500;
 }
 
-.warn {
-  color: var(--warning);
+.warn { color: #f59e0b; font-weight: 700; }
+
+/* ─── Inline budget input ─────────────────────────────────────────────────── */
+.budget-input-inline {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: var(--text);
   font-weight: 600;
+  font-size: 0.92rem;
 }
 
+.budget-input-inline:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 820px) {
-  .builder-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .task-grid {
-    grid-template-columns: 1fr;
-  }
-  .builder-sticky-inner {
-    flex-direction: column;
-    align-items: stretch;
-  }
+  .builder-header     { flex-direction: column; align-items: stretch; }
+  .task-grid          { grid-template-columns: 1fr; }
+  .builder-sticky-inner { flex-direction: column; align-items: stretch; }
+  .builder-card-head  { flex-direction: column; align-items: flex-start; }
+  .budget-summary-strip { flex-direction: column; }
 }
-

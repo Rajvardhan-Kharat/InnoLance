@@ -12,6 +12,7 @@ import path from 'path';
 import fs from 'fs';
 import { evaluateProposal } from '../services/aiScoring.js';
 import ProjectAssessmentAttempt from '../models/ProjectAssessmentAttempt.js';
+import { sendEmail } from '../utils/sendEmail.js';
 
 const router = express.Router();
 
@@ -374,6 +375,37 @@ router.patch('/:id/accept', protect, restrictTo('client', 'admin'), async (req, 
         });
       }
       await Notification.create(notifs);
+
+      // Send standard email notification to hired freelancer
+      try {
+        const freelancerUser = await User.findById(proposal.freelancer).select('email firstName').lean();
+        if (freelancerUser && freelancerUser.email) {
+          const emailSubject = `Congratulations! You've been hired for "${proposal.project.title}"`;
+          const emailText = [
+            `Hello ${freelancerUser.firstName || 'Freelancer'},`,
+            '',
+            `Your proposal for the project "${proposal.project.title}" has been accepted by the client!`,
+            '',
+            `Project Details:`,
+            `- Title: ${proposal.project.title}`,
+            `- Bid Amount: ₹${bidINR}`,
+            '',
+            `Please log in to your dashboard to review the project guidelines, establish a timeline with your client (or Project Manager), and begin work.`,
+            '',
+            `Best Regards,`,
+            `The InnoLance Team`
+          ].join('\n');
+          
+          await sendEmail({
+            to: freelancerUser.email,
+            subject: emailSubject,
+            text: emailText
+          });
+        }
+      } catch (emailErr) {
+        console.error('Error sending hired email:', emailErr);
+      }
+
 
       const updated = await Proposal.findById(proposal._id)
         .populate('project')

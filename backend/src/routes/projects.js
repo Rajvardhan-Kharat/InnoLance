@@ -6,6 +6,7 @@ import Notification from '../models/Notification.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import ProjectAssessment from '../models/ProjectAssessment.js';
 import ProjectAssessmentAttempt from '../models/ProjectAssessmentAttempt.js';
+import { generateTitleAndDescription, generateFullProjectDetails } from '../services/aiPrdGenerator.js';
 
 const router = express.Router();
 
@@ -111,9 +112,57 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post(
+  '/generate-details',
+  protect,
+  restrictTo('client', 'freelancer', 'admin'),
+  [
+    body('ideaText').isString().trim().notEmpty().withMessage('Idea text is required'),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+      const { ideaText } = req.body;
+      const details = await generateTitleAndDescription(ideaText);
+      
+      res.json(details);
+    } catch (err) {
+      console.error('Error generating project details:', err);
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+router.post(
+  '/generate-full-details',
+  protect,
+  restrictTo('client', 'freelancer', 'admin'),
+  [
+    body('ideaText').isString().trim().notEmpty().withMessage('Idea text is required'),
+    body('aiInstructions').optional().isString(),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+      const { ideaText, aiInstructions } = req.body;
+      const details = await generateFullProjectDetails(ideaText, aiInstructions);
+      
+      res.json(details);
+    } catch (err) {
+      console.error('Error generating full project details:', err);
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+
+router.post(
   '/',
   protect,
-  restrictTo('client'),
+  restrictTo('client', 'freelancer', 'admin'),
   [
     body('title').trim().notEmpty(),
     body('description').trim().notEmpty(),

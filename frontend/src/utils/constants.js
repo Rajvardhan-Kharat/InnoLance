@@ -1,6 +1,8 @@
 export const CATEGORIES = [
-  'Web Development', 'Mobile App', 'Design', 'Writing', 'Marketing',
-  'Data Science', 'DevOps', 'Other'
+  'Web Development', 'Mobile App', 'Data Science', 'DevOps',
+  'Design & Creative', 'Video & Animation', 'Writing & Translation',
+  'Sales & Marketing', 'Virtual Assistance', 'Finance & Accounting',
+  'Legal & Consulting', 'Other'
 ];
 
 export const DURATIONS = [
@@ -11,6 +13,16 @@ export const DURATIONS = [
 ];
 
 export const SKILLS = [
-  'React', 'Node.js', 'MongoDB', 'Python', 'UI/UX', 'Content Writing',
-  'SEO', 'AWS', 'Docker', 'TypeScript', 'GraphQL', 'REST', 'Figma'
+  // Tech & Dev
+  'React', 'Node.js', 'MongoDB', 'Python', 'AWS', 'Docker', 'TypeScript', 'GraphQL', 'REST', 'Java', 'C++', 'Swift',
+  // Design & Creative
+  'UI/UX', 'Figma', 'Graphic Design', 'Logo Design', 'Illustration', 'Photoshop', 'Illustrator',
+  // Writing & Content
+  'Content Writing', 'Copywriting', 'SEO', 'Translation', 'Proofreading', 'Technical Writing',
+  // Marketing & Sales
+  'Social Media Marketing', 'Email Marketing', 'Lead Generation', 'Sales Strategy',
+  // Video & Audio
+  'Video Editing', 'Animation', 'Voice Over', 'Audio Production',
+  // Business & Admin
+  'Virtual Assistance', 'Data Entry', 'Project Management', 'Accounting', 'Legal Consulting'
 ];
