@@ -52,6 +52,39 @@ export default function AdminEnterpriseRfp() {
   const navigate = useNavigate();
   const socket = useSocket();
 
+  // ── Smart client display helpers ────────────────────────────────────────────
+  function getClientName(ep) {
+    const cu = ep.clientUser;
+    if (!cu) return 'External Client';
+    const first = (cu.firstName || '').trim();
+    const last = (cu.lastName || '').trim();
+    if (first || last) return `${first} ${last}`.trim();
+    // Fall back to email username part
+    if (cu.email) return cu.email.split('@')[0];
+    return 'Registered User';
+  }
+
+  function getClientInitial(ep) {
+    const cu = ep.clientUser;
+    if (!cu) return '?';
+    const first = (cu.firstName || '').trim();
+    if (first) return first[0].toUpperCase();
+    if (cu.email) return cu.email[0].toUpperCase();
+    return 'U';
+  }
+
+  function getClientSub(ep) {
+    const cu = ep.clientUser;
+    if (!cu) {
+      // Try to extract something useful from clientReference
+      const ref = ep.clientReference || '';
+      const emailMatch = ref.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      return emailMatch ? emailMatch[0] : '—';
+    }
+    if (cu.email) return cu.email;
+    return '—';
+  }
+
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -105,9 +138,13 @@ export default function AdminEnterpriseRfp() {
   };
 
   const filtered = projects.filter((p) => {
-    const matchSearch = !search || (p.clientReference || '').toLowerCase().includes(search.toLowerCase())
-      || (p.clientUser?.firstName || '').toLowerCase().includes(search.toLowerCase())
-      || (p.clientUser?.email || '').toLowerCase().includes(search.toLowerCase());
+    const cu = p.clientUser;
+    const nameStr = cu
+      ? `${cu.firstName || ''} ${cu.lastName || ''} ${cu.email || ''}`.toLowerCase()
+      : '';
+    const matchSearch = !search
+      || (p.clientReference || '').toLowerCase().includes(search.toLowerCase())
+      || nameStr.includes(search.toLowerCase());
     const matchStatus = !statusFilter || p.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -207,13 +244,13 @@ export default function AdminEnterpriseRfp() {
                     <td>
                       <div className="ent-client-cell">
                         <div className="ent-client-avatar">
-                          {(ep.clientUser?.firstName || '?')[0].toUpperCase()}
+                          {getClientInitial(ep)}
                         </div>
                         <div>
                           <div className="ent-client-name">
-                            {ep.clientUser ? `${ep.clientUser.firstName} ${ep.clientUser.lastName}` : 'External Client'}
+                            {getClientName(ep)}
                           </div>
-                          <div className="ent-client-email">{ep.clientUser?.email || '—'}</div>
+                          <div className="ent-client-email">{getClientSub(ep)}</div>
                         </div>
                       </div>
                     </td>
