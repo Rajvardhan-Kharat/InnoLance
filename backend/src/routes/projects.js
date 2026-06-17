@@ -32,7 +32,11 @@ router.get(
       if (budgetType) q.budgetType = budgetType;
       if (duration) q.duration = duration;
       if (skills) q.skills = { $in: skills.split(',').map((s) => s.trim()) };
-      if (search) q.$or = [{ title: new RegExp(search, 'i') }, { description: new RegExp(search, 'i') }];
+      if (search) {
+        // Escape special regex chars to prevent ReDoS attacks
+        const escapedSearch = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        q.$or = [{ title: new RegExp(escapedSearch, 'i') }, { description: new RegExp(escapedSearch, 'i') }];
+      }
 
       const min = minBudget !== undefined && minBudget !== '' ? Number(minBudget) : null;
       const max = maxBudget !== undefined && maxBudget !== '' ? Number(maxBudget) : null;

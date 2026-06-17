@@ -42,6 +42,8 @@ const userSchema = new mongoose.Schema(
       },
     },
     authProviders: { type: [String], default: ['password'] },
+    resetPasswordOTP: { type: String },
+    resetPasswordOTPExpires: { type: Date },
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );

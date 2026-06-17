@@ -3,12 +3,13 @@ import { body, validationResult } from 'express-validator';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.js';
-import { protect } from '../middleware/auth.js';
+import { protect, JWT_SECRET } from '../middleware/auth.js';
+import sendEmail from '../utils/email.js';
 
 const router = express.Router();
 
 const signToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET || 'secret', { expiresIn: process.env.JWT_EXPIRE || '7d' });
+  jwt.sign({ id }, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
 
 function envBool(name, fallback = false) {
   const v = process.env[name];
@@ -351,5 +352,59 @@ router.post(
     }
   }
 );
+
+router.post('/forgot-password', async (req, res) => {
+  // Always return a generic success response to prevent user enumeration
+  const GENERIC_OK = { message: 'If that email is registered, an OTP has been sent.' };
+  try {
+    const user = await User.findOne({ email: req.body.email });
+    if (!user) return res.status(200).json(GENERIC_OK); // Don't reveal non-existence
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.resetPasswordOTP = crypto.createHash('sha256').update(otp).digest('hex');
+    user.resetPasswordOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save({ validateBeforeSave: false });
+
+    try {
+      const message = `Your password reset OTP is: ${otp}\nThis OTP is valid for 10 minutes.\n\nIf you did not request this, please ignore this email.`;
+      await sendEmail({
+        email: user.email,
+        subject: 'Your Password Reset OTP (InnoLance)',
+        message
+      });
+      res.status(200).json(GENERIC_OK);
+    } catch (err) {
+      user.resetPasswordOTP = undefined;
+      user.resetPasswordOTPExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      return res.status(500).json({ message: 'There was an error sending the email. Try again later.' });
+    }
+  } catch (err) {
+    res.status(500).json({ message: 'An unexpected error occurred.' });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const hashedOTP = crypto.createHash('sha256').update(req.body.otp).digest('hex');
+    const user = await User.findOne({
+      email: req.body.email,
+      resetPasswordOTP: hashedOTP,
+      resetPasswordOTPExpires: { $gt: Date.now() }
+    });
+
+    if (!user) return res.status(400).json({ message: 'OTP is invalid or has expired.' });
+
+    user.password = req.body.password;
+    user.resetPasswordOTP = undefined;
+    user.resetPasswordOTPExpires = undefined;
+    await user.save();
+
+    const token = signToken(user._id);
+    res.status(200).json({ message: 'Password reset successful!', token, user });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 export default router;

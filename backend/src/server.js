@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 import { initSocket } from './socket/index.js';
 import authRoutes from './routes/auth.js';
@@ -30,6 +32,34 @@ dotenv.config();
 
 const app = express();
 
+// ─── Security headers (helmet) ────────────────────────────────────────────────
+// Disable COEP for now since it can break embedded third-party content (Stripe iframes etc.)
+app.use(helmet({ crossOriginEmbedderPolicy: false }));
+
+// ─── Rate limiters ────────────────────────────────────────────────────────────
+// Auth endpoints: generous for login/register, strict for OTP
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests from this IP, please try again later.' },
+});
+const otpLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many OTP requests. Please wait 10 minutes before trying again.' },
+});
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'AI generation rate limit exceeded. Please wait a moment.' },
+});
+
 function parseOrigins() {
   const raw = process.env.CLIENT_URLS || process.env.CLIENT_URL || 'http://localhost:5173';
   const parts = String(raw)
@@ -53,6 +83,16 @@ app.use(cors({
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Apply rate limiters to sensitive routes
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', otpLimiter);
+app.use('/api/auth/reset-password', otpLimiter);
+app.use('/api/projects/generate-details', aiLimiter);
+app.use('/api/projects/generate-full-details', aiLimiter);
+app.use('/api/enterprise-rfp/generate-rfp', aiLimiter);
+app.use('/api/admin/enterprise-projects', aiLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -108,6 +148,17 @@ httpServer.listen(PORT, () => {
   } else {
     console.warn('\n⚠️ IMAP listener not started due to missing IMAP_PASSWORD in .env ⚠️\n');
   }
+});
+
+// ─── Global Error Handler ─────────────────────────────────────────────────────
+// Must be last — catches any errors passed via next(err) or unhandled rejections
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const isDev = process.env.NODE_ENV !== 'production';
+  const status = err.statusCode || err.status || 500;
+  const message = isDev ? err.message : (status < 500 ? err.message : 'Internal server error');
+  if (status >= 500) console.error('[Global Error Handler]', err);
+  res.status(status).json({ message });
 });
 
 export default app;

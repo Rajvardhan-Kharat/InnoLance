@@ -58,6 +58,7 @@ projectSchema.index({ client: 1, status: 1 });
 projectSchema.index({ status: 1, category: 1 });
 projectSchema.index({ skills: 1 });
 projectSchema.index({ createdAt: -1 });
+projectSchema.index({ freelancer: 1, status: 1 }); // For /api/projects/my (freelancer view)
 
 const Project = mongoose.model('Project', projectSchema);
 export default Project;

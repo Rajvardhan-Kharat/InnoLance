@@ -175,7 +175,7 @@ export async function transferWallet({
     type: 'wallet_credit',
     title: 'Wallet credited',
     body: `₹${(creditPaise / 100).toFixed(2)} added to your wallet.`,
-    link: '/settings',
+    link: '/wallet',
     meta,
   }], { session });
 

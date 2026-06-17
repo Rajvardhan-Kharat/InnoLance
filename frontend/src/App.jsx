@@ -33,7 +33,7 @@ function PrivateRoute({ children }) {
 function PublicOnly({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="loading-screen">Loading...</div>;
-  if (user) return <Navigate to="/myprojects" replace />;
+  if (user) return <Navigate to={user.role === 'admin' ? '/admin' : '/myprojects'} replace />;
   return children;
 }
 

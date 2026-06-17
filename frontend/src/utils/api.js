@@ -16,7 +16,12 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Avoid infinite redirect loop if already on login/register/oauth pages
+      const publicPaths = ['/login', '/register', '/oauth'];
+      const isPublic = publicPaths.some((p) => window.location.pathname.startsWith(p));
+      if (!isPublic) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(err);
   }

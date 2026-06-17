@@ -9,34 +9,9 @@ import PlatformSettings from '../models/PlatformSettings.js';
 import CmsPage from '../models/CmsPage.js';
 import ProjectAssessment from '../models/ProjectAssessment.js';
 import { protect, restrictTo } from '../middleware/auth.js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { generateWithFallbackChain, isTransientGeminiError } from '../services/llmFallback.js';
+import { safeJsonParse, generateTextWithAllProviders } from '../utils/aiUtils.js';
 
 const router = express.Router();
-
-function safeJsonParse(text) {
-  if (!text) return null;
-  let cleaned = String(text).trim();
-  if (cleaned.startsWith('```json')) {
-    cleaned = cleaned.replace(/^```json/, '').replace(/```$/, '').trim();
-  } else if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```/, '').replace(/```$/, '').trim();
-  }
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const firstArray = cleaned.indexOf('[');
-    if (firstArray < 0) return null;
-    const candidate = cleaned.slice(firstArray);
-    const lastBracket = candidate.lastIndexOf(']');
-    if (lastBracket < 0) return null;
-    try {
-      return JSON.parse(candidate.slice(0, lastBracket + 1));
-    } catch {
-      return null;
-    }
-  }
-}
 
 /** Keep assembly Kanban in sync: hired marketplace project → microJob.hiredUser + Assigned when still Open. */
 async function syncMicroJobsWithMarketplaceProjects(parentProjectId) {
@@ -194,9 +169,16 @@ router.post('/cms/pages', async (req, res) => {
 
 router.patch('/cms/pages/:slug', async (req, res) => {
   try {
+    // Whitelist allowed fields to prevent arbitrary document injection
+    const { title, content, published } = req.body;
+    const update = { updatedBy: req.user._id };
+    if (title !== undefined) update.title = title;
+    if (content !== undefined) update.content = content;
+    if (published !== undefined) update.published = Boolean(published);
+
     const page = await CmsPage.findOneAndUpdate(
       { slug: req.params.slug },
-      { ...req.body, updatedBy: req.user._id },
+      update,
       { new: true }
     );
     if (!page) return res.status(404).json({ message: 'Page not found' });
@@ -303,39 +285,13 @@ PRD/RFP TEXT:
 ${project.originalRfpText.slice(0, 28000)}`;
 
     let suggestions = null;
-    let lastErr = null;
 
-    // 1. Try Gemini first
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (apiKey) {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-      for (const modelName of modelsToTry) {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            const result = await model.generateContent(prompt);
-            const text = result?.response?.text?.()?.trim() || '';
-            const parsed = safeJsonParse(text);
-            if (Array.isArray(parsed) && parsed.length > 0) { suggestions = parsed; break; }
-          } catch (err) {
-            lastErr = err;
-            if (!isTransientGeminiError(err) || attempt === 3) break;
-            await new Promise((r) => setTimeout(r, 600 * (2 ** (attempt - 1))));
-          }
-        }
-        if (Array.isArray(suggestions)) break;
-      }
-    }
-
-    // 2. Fallback chain (Groq → OpenRouter → HuggingFace → Cohere)
-    if (!Array.isArray(suggestions)) {
-      const fallbackText = await generateWithFallbackChain(prompt);
-      if (fallbackText) suggestions = safeJsonParse(fallbackText);
-    }
+    // Use shared AI utility (Gemini → Groq → OpenRouter → HuggingFace → Cohere)
+    const rawText = await generateTextWithAllProviders(prompt);
+    if (rawText) suggestions = safeJsonParse(rawText);
 
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
-      throw (lastErr || new Error('All AI providers failed to generate WBS suggestions'));
+      throw new Error('All AI providers failed to generate WBS suggestions');
     }
 
     // Normalize & validate budget sum — scale if over limit
