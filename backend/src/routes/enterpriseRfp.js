@@ -273,12 +273,24 @@ router.post(
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
       const { ideaText, aiInstructions } = req.body;
+      // generateRfpFromIdea never throws — it always returns a structured object
       const rfpDraft = await generateRfpFromIdea(ideaText, aiInstructions);
 
       return res.json(rfpDraft);
     } catch (err) {
-      console.error('Error generating RFP draft:', err);
-      return res.status(500).json({ message: err.message });
+      // Ultimate safety net: build a local fallback inline so we NEVER return 500
+      console.error('[generate-rfp-draft] Unexpected error (local fallback used):', err.message);
+      const { ideaText = '', aiInstructions = '' } = req.body || {};
+      const idea = String(ideaText).trim();
+      const lines = idea.split(/[.\n]+/).map((l) => l.trim()).filter(Boolean);
+      return res.json({
+        projectOverview: `We are looking to build a solution based on the following requirements:\n\n${idea.slice(0, 800)}\n\nWe expect a professional, scalable, and well-documented delivery.`,
+        technicalScope: `Core functionality required:\n${lines.slice(0, 6).map((l) => `• ${l}`).join('\n')}\n\n• Responsive web/mobile interface\n• Secure authentication\n• Admin dashboard\n• REST API backend\n• Cloud-ready deployment`,
+        goalsAndRequirements: `Functional Requirements:\n${lines.slice(0, 6).map((l) => `• ${l}`).join('\n')}\n\nNon-Functional Requirements:\n• 99.5% uptime SLA\n• Page load < 2 seconds\n• HTTPS and data encryption\n• Role-based access control\n• Post-launch 30-day support`,
+        suggestedBudgetRange: '₹1,00,000 – ₹5,00,000',
+        suggestedTimeline: 'Phase 1 (MVP): 2–3 months | Phase 2 (Full Launch): 4–6 months',
+        _fallback: true,
+      });
     }
   }
 );

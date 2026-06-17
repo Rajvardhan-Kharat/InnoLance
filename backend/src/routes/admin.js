@@ -290,9 +290,20 @@ ${project.originalRfpText.slice(0, 28000)}`;
     const rawText = await generateTextWithAllProviders(prompt);
     if (rawText) suggestions = safeJsonParse(rawText);
 
+    // ── Local fallback if ALL AI providers failed ──────────────────────────────
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
-      throw new Error('All AI providers failed to generate WBS suggestions');
+      console.warn('[WBS Suggest] All AI providers failed — using local fallback WBS');
+      const perTask = freelancerBudget > 0 ? Math.round(freelancerBudget / 6 / 500) * 500 : 5000;
+      suggestions = [
+        { title: 'Project Management & Planning', description: 'Sprint planning, stakeholder communication, milestone tracking, and delivery coordination.', requiredTechStackText: 'Jira, Confluence, Slack', allocatedBudget: perTask },
+        { title: 'UI/UX Design', description: 'Wireframes, high-fidelity mockups, design system, and user flow diagrams.', requiredTechStackText: 'Figma, Adobe XD', allocatedBudget: perTask },
+        { title: 'Frontend Development', description: 'Responsive UI implementation covering all screens and user interactions per the RFP.', requiredTechStackText: 'React.js, TypeScript, CSS', allocatedBudget: perTask },
+        { title: 'Backend API Development', description: 'RESTful API design and implementation, business logic, authentication, and third-party integrations.', requiredTechStackText: 'Node.js, Express, MongoDB', allocatedBudget: perTask },
+        { title: 'QA & Testing', description: 'Unit tests, integration tests, end-to-end tests, and UAT support.', requiredTechStackText: 'Jest, Cypress, Postman', allocatedBudget: perTask },
+        { title: 'DevOps & Deployment', description: 'CI/CD pipeline setup, Docker containerization, cloud deployment, and environment configuration.', requiredTechStackText: 'Docker, GitHub Actions, AWS/GCP', allocatedBudget: perTask },
+      ];
     }
+
 
     // Normalize & validate budget sum — scale if over limit
     let normalized = suggestions.map(s => ({

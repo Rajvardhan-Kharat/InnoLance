@@ -1,8 +1,144 @@
 import { safeJsonParse, generateTextWithAllProviders } from '../utils/aiUtils.js';
 
+// ─── Local deterministic fallback ────────────────────────────────────────────
+/**
+ * Generates a structured RFP purely from the input text — no AI required.
+ * Used when ALL AI providers fail so the user always gets a usable draft.
+ */
+function buildLocalRfpFallback(ideaText, aiInstructions = '') {
+  const idea = (ideaText || '').trim();
+  const lines = idea.split(/[.\n]+/).map((l) => l.trim()).filter(Boolean);
+
+  // Heuristic: extract keywords for tech suggestions
+  const lower = idea.toLowerCase();
+  const techHints = [];
+  if (/website|web app|frontend|react|angular|vue/.test(lower)) techHints.push('React.js / Next.js (Frontend)');
+  if (/mobile|android|ios|app/.test(lower)) techHints.push('React Native / Flutter (Mobile App)');
+  if (/api|backend|server|node|python|django/.test(lower)) techHints.push('Node.js + Express (Backend API)');
+  if (/database|mongodb|mysql|postgres|sql/.test(lower)) techHints.push('MongoDB / PostgreSQL (Database)');
+  if (/payment|billing|invoice|stripe|razorpay/.test(lower)) techHints.push('Payment Gateway Integration (Razorpay / Stripe)');
+  if (/dashboard|analytics|chart|report/.test(lower)) techHints.push('Dashboard & Analytics Module');
+  if (/auth|login|register|oauth/.test(lower)) techHints.push('Authentication & Authorization (JWT / OAuth)');
+  if (/ai|ml|machine learning|chatbot|nlp/.test(lower)) techHints.push('AI / ML Integration');
+  if (/cloud|aws|gcp|azure|deploy/.test(lower)) techHints.push('Cloud Deployment (AWS / GCP)');
+  if (!techHints.length) techHints.push('Web Application Stack', 'REST API Backend', 'Relational / NoSQL Database');
+
+  // Budget estimate heuristic based on complexity words
+  let budgetRange = '₹1,00,000 – ₹3,00,000';
+  if (/enterprise|large|complex|multiple|integration|automation/.test(lower)) budgetRange = '₹5,00,000 – ₹15,00,000';
+  else if (/simple|basic|small|single/.test(lower)) budgetRange = '₹25,000 – ₹80,000';
+
+  // Timeline heuristic
+  let timeline = 'Phase 1 (MVP): 2–3 months | Phase 2 (Full Launch): 4–6 months';
+  if (/urgent|asap|quick|fast/.test(lower)) timeline = 'Phase 1 (MVP): 4–6 weeks | Phase 2 (Full Launch): 2–3 months';
+
+  const projectOverview = [
+    `We are seeking a qualified technology partner to design and develop a comprehensive solution based on our requirements.`,
+    `Our core need is as follows: ${idea.slice(0, 600)}${idea.length > 600 ? '...' : ''}`,
+    `We expect the solution to be reliable, scalable, and delivered on schedule with clear milestones.`,
+    aiInstructions ? `Additional context: ${aiInstructions.slice(0, 300)}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  const technicalScope = [
+    `**Required Technology Stack:**`,
+    techHints.map((t) => `• ${t}`).join('\n'),
+    ``,
+    `**Core Features Required:**`,
+    lines.slice(0, 6).map((l) => `• ${l}`).join('\n'),
+    ``,
+    `**System Requirements:**`,
+    `• Responsive design (desktop and mobile)`,
+    `• Secure data handling and storage`,
+    `• RESTful or GraphQL API architecture`,
+    `• Admin dashboard for management`,
+    `• Role-based access control`,
+    `• Third-party integration support`,
+  ].join('\n');
+
+  const goalsAndRequirements = [
+    `**Functional Requirements:**`,
+    lines.slice(0, 8).map((l) => `• ${l}`).join('\n'),
+    ``,
+    `**Non-Functional Requirements:**`,
+    `• System uptime ≥ 99.5%`,
+    `• Page load time < 2 seconds`,
+    `• Support for concurrent users`,
+    `• Data encryption at rest and in transit`,
+    `• GDPR / data privacy compliance`,
+    ``,
+    `**Success Criteria:**`,
+    `• Successful delivery of all listed features`,
+    `• Passing of User Acceptance Testing (UAT)`,
+    `• Full source code and documentation handover`,
+    `• Post-launch support period of at least 30 days`,
+  ].join('\n');
+
+  return {
+    projectOverview,
+    technicalScope,
+    goalsAndRequirements,
+    suggestedBudgetRange: budgetRange,
+    suggestedTimeline: timeline,
+    _fallback: true, // internal marker so caller knows it was local
+  };
+}
+
+/**
+ * Generates a structured Enterprise RFP.
+ * ALWAYS returns a valid object — never throws.
+ * Uses AI if available, falls back to deterministic local generation.
+ */
+export async function generateRfpFromIdea(ideaText, aiInstructions = '') {
+  // ── 1. Try AI providers ──────────────────────────────────────────────────
+  try {
+    const prompt = `You are a Senior Enterprise Solutions Architect helping a client write a professional Enterprise RFP (Request for Proposal).
+The client gave you their rough idea below. Your job is to expand it into a polished, thorough enterprise RFP document.
+
+CLIENT IDEA:
+"""
+${ideaText}
+"""
+
+Expand this into a professional, structured Enterprise Request for Proposal (RFP) document. Return ONLY a valid JSON object with these exact keys:
+- "projectOverview": string (A single string containing a detailed 2-3 paragraph executive summary written in FIRST PERSON from the client's perspective. Use "We are looking for...", "Our organisation needs...", "I need to build...". Use \\n\\n for paragraphs. Do NOT write in third person like "The client requires...")
+- "technicalScope": string (Detailed technical scope covering: required tech stacks, integrations, APIs, system architecture considerations, specific features, scalability requirements, security considerations)
+- "goalsAndRequirements": string (Structured list of functional and non-functional requirements, success criteria, and key deliverables)
+- "suggestedBudgetRange": string (A realistic enterprise budget range as a string, e.g. "₹5,00,000 – ₹15,00,000")
+- "suggestedTimeline": string (Recommended project timeline with phases, e.g. "Phase 1 (MVP): 3 months | Phase 2 (Full Launch): 6 months")
+
+${aiInstructions ? `ADDITIONAL CLIENT INSTRUCTIONS FOR GENERATION:\n"""\n${aiInstructions}\n"""\nMake sure to strictly follow the above additional instructions while generating the RFP.\n` : ''}
+Be professional, thorough, and enterprise-grade. Do not use markdown blocks. Return raw JSON only.`;
+
+    const text = await generateTextWithAllProviders(prompt);
+
+    if (text) {
+      const parsed = safeJsonParse(text);
+      if (parsed && parsed.projectOverview) {
+        const overviewIsSameAsInput = parsed.projectOverview.trim() === ideaText.trim();
+        if (!overviewIsSameAsInput) {
+          return {
+            projectOverview: parsed.projectOverview,
+            technicalScope: parsed.technicalScope || '',
+            goalsAndRequirements: parsed.goalsAndRequirements || '',
+            suggestedBudgetRange: parsed.suggestedBudgetRange || '',
+            suggestedTimeline: parsed.suggestedTimeline || '',
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[generateRfpFromIdea] AI providers failed:', err.message);
+  }
+
+  // ── 2. Local deterministic fallback — always succeeds ───────────────────
+  console.log('[generateRfpFromIdea] All AI providers exhausted — using local fallback');
+  return buildLocalRfpFallback(ideaText, aiInstructions);
+}
+
 // ─── generatePrdFromIdea ──────────────────────────────────────────────────────
 /**
  * Generates a structured Project Requirements Document (PRD) from a raw client idea.
+ * ALWAYS returns a string — never throws.
  * @param {string} ideaText
  * @returns {Promise<string>}
  */
@@ -27,17 +163,43 @@ The PRD should be formatted in Markdown and include the following sections:
 Be professional, thorough, and analytical. Return ONLY the Markdown formatted PRD. Do not include any conversational filler.`;
 
     const generatedText = await generateTextWithAllProviders(prompt);
-    if (!generatedText) throw new Error('All AI providers failed');
-    return generatedText;
+    if (generatedText) return generatedText;
   } catch (error) {
-    console.error('AI PRD Generation Error:', error);
-    return 'Failed to automatically generate PRD. Raw Idea:\n\n' + ideaText;
+    console.warn('[generatePrdFromIdea] AI failed:', error.message);
   }
+
+  // Local Markdown PRD fallback
+  const lines = (ideaText || '').split(/[.\n]+/).map((l) => l.trim()).filter(Boolean);
+  return [
+    `# Project Requirements Document`,
+    ``,
+    `## Executive Summary`,
+    `This document outlines the requirements for the following project: ${ideaText.slice(0, 400)}`,
+    ``,
+    `## Core Features`,
+    lines.slice(0, 8).map((l) => `- ${l}`).join('\n'),
+    ``,
+    `## Technical Requirements`,
+    `- Frontend: Web or Mobile Application`,
+    `- Backend: RESTful API Server`,
+    `- Database: Relational or NoSQL`,
+    `- Hosting: Cloud (AWS / GCP / Azure) or VPS`,
+    ``,
+    `## Milestones & Deliverables`,
+    `- Phase 1 (MVP): Core feature development — 4–8 weeks`,
+    `- Phase 2 (Launch): QA, deployment, and handover — 2–4 weeks`,
+    ``,
+    `## Non-Functional Requirements`,
+    `- Security: HTTPS, data encryption, role-based access`,
+    `- Performance: Response time < 2s under normal load`,
+    `- Scalability: Support growth in user base`,
+  ].join('\n');
 }
 
 // ─── generateTitleAndDescription ─────────────────────────────────────────────
 /**
- * Generates a title and description formatted for a standard project posting from a raw idea.
+ * Generates a title and description for a standard project posting.
+ * ALWAYS returns a valid object — never throws.
  * @param {string} ideaText
  * @returns {Promise<{title: string, description: string}>}
  */
@@ -63,16 +225,23 @@ Return ONLY a valid JSON object with the exact keys: 'title' (a string) and 'des
         return parsed;
       }
     }
-    return { title: 'Untitled Project', description: ideaText };
   } catch (err) {
-    console.error('AI generateTitleAndDescription Error:', err);
-    return { title: 'Untitled Project', description: ideaText };
+    console.warn('[generateTitleAndDescription] AI failed:', err.message);
   }
+
+  // Local fallback
+  const words = ideaText.trim().split(/\s+/);
+  const shortTitle = words.slice(0, 6).join(' ');
+  return {
+    title: shortTitle.length > 5 ? shortTitle : 'Custom Software Project',
+    description: ideaText,
+  };
 }
 
 // ─── generateFullProjectDetails ───────────────────────────────────────────────
 /**
  * Generates full project details: title, description, skills, budget, duration.
+ * ALWAYS returns a valid object — never throws.
  * @param {string} ideaText
  * @param {string} [aiInstructions]
  * @returns {Promise<{title, description, skills, budget, duration}>}
@@ -98,79 +267,66 @@ ${aiInstructions ? `ADDITIONAL CLIENT INSTRUCTIONS FOR GENERATION:\n"""\n${aiIns
 Do not use markdown blocks. Return raw JSON only.`;
 
     const text = await generateTextWithAllProviders(prompt);
-    if (!text) throw new Error('All AI providers returned empty response');
-
-    const parsed = safeJsonParse(text);
-    if (parsed && parsed.title && parsed.description) {
-      // Validate it didn't just echo back the input
-      const descIsSameAsInput = parsed.description.trim() === ideaText.trim();
-      const titleIsDefault = parsed.title === 'Untitled Project';
-      if (descIsSameAsInput || titleIsDefault) {
-        throw new Error('AI returned fallback/echo content — retrying not possible');
+    if (text) {
+      const parsed = safeJsonParse(text);
+      if (parsed && parsed.title && parsed.description) {
+        const descIsSameAsInput = parsed.description.trim() === ideaText.trim();
+        const titleIsDefault = parsed.title === 'Untitled Project';
+        if (!descIsSameAsInput && !titleIsDefault) {
+          return {
+            title: parsed.title,
+            description: parsed.description,
+            skills: Array.isArray(parsed.skills) ? parsed.skills : [],
+            budget: Number(parsed.budget) || 5000,
+            duration: parsed.duration || '1-3months',
+          };
+        }
       }
-      return {
-        title: parsed.title,
-        description: parsed.description,
-        skills: Array.isArray(parsed.skills) ? parsed.skills : [],
-        budget: Number(parsed.budget) || 5000,
-        duration: parsed.duration || '1-3months',
-      };
     }
-    throw new Error('AI response could not be parsed as valid JSON with required fields');
   } catch (err) {
-    console.error('AI generateFullProjectDetails Error:', err);
-    throw new Error('AI failed to generate project details. Please try again or fill fields manually.');
+    console.warn('[generateFullProjectDetails] AI failed:', err.message);
   }
-}
 
-// ─── generateRfpFromIdea ──────────────────────────────────────────────────────
-/**
- * Generates a structured Enterprise RFP document from a rough idea paragraph.
- * @param {string} ideaText
- * @param {string} [aiInstructions]
- * @returns {Promise<{projectOverview, technicalScope, goalsAndRequirements, suggestedBudgetRange, suggestedTimeline}>}
- */
-export async function generateRfpFromIdea(ideaText, aiInstructions = '') {
-  try {
-    const prompt = `You are a Senior Enterprise Solutions Architect helping a client write a professional Enterprise RFP (Request for Proposal).
-The client gave you their rough idea below. Your job is to expand it into a polished, thorough enterprise RFP document.
+  // ── Local deterministic fallback ─────────────────────────────────────────
+  console.log('[generateFullProjectDetails] All AI providers exhausted — using local fallback');
+  const lower = ideaText.toLowerCase();
+  const words = ideaText.trim().split(/\s+/);
 
-CLIENT IDEA:
-"""
-${ideaText}
-"""
+  // Derive a title from the first 6–8 meaningful words
+  const stopWords = new Set(['i', 'we', 'a', 'an', 'the', 'to', 'for', 'and', 'or', 'in', 'on', 'of', 'is', 'are', 'with', 'my', 'our']);
+  const titleWords = words.filter((w) => !stopWords.has(w.toLowerCase())).slice(0, 6);
+  const title = titleWords.length > 2
+    ? titleWords.map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')
+    : 'Custom Software Development Project';
 
-Expand this into a professional, structured Enterprise Request for Proposal (RFP) document. Return ONLY a valid JSON object with these exact keys:
-- "projectOverview": string (A single string containing a detailed 2-3 paragraph executive summary written in FIRST PERSON from the client's perspective. Use "We are looking for...", "Our organisation needs...", "I need to build...". Use \\n\\n for paragraphs. Do NOT write in third person like "The client requires...")
-- "technicalScope": string (Detailed technical scope covering: required tech stacks, integrations, APIs, system architecture considerations, specific features, scalability requirements, security considerations)
-- "goalsAndRequirements": string (Structured list of functional and non-functional requirements, success criteria, and key deliverables)
-- "suggestedBudgetRange": string (A realistic enterprise budget range as a string, e.g. "₹5,00,000 – ₹15,00,000")
-- "suggestedTimeline": string (Recommended project timeline with phases, e.g. "Phase 1 (MVP): 3 months | Phase 2 (Full Launch): 6 months")
+  const description = [
+    `I am looking for a skilled freelancer to help me with the following project:`,
+    ``,
+    ideaText.slice(0, 600),
+    ``,
+    `Please reach out if you have relevant experience and can deliver quality results on time.`,
+    aiInstructions ? `\nAdditional notes: ${aiInstructions.slice(0, 200)}` : '',
+  ].filter(Boolean).join('\n');
 
-${aiInstructions ? `ADDITIONAL CLIENT INSTRUCTIONS FOR GENERATION:\n"""\n${aiInstructions}\n"""\nMake sure to strictly follow the above additional instructions while generating the RFP.\n` : ''}
-Be professional, thorough, and enterprise-grade. Do not use markdown blocks. Return raw JSON only.`;
+  // Infer skills
+  const skills = [];
+  if (/website|web|react|angular|vue|html|css/.test(lower)) skills.push('Web Development');
+  if (/mobile|android|ios|flutter|react native/.test(lower)) skills.push('Mobile App Development');
+  if (/api|backend|node|python|django|express/.test(lower)) skills.push('Backend Development');
+  if (/design|ui|ux|figma|photoshop/.test(lower)) skills.push('UI/UX Design');
+  if (/database|sql|mongodb|postgres/.test(lower)) skills.push('Database Design');
+  if (/payment|billing|invoice/.test(lower)) skills.push('Payment Integration');
+  if (!skills.length) skills.push('Software Development', 'Web Development', 'API Integration');
 
-    const text = await generateTextWithAllProviders(prompt);
-    if (!text) throw new Error('All AI providers returned empty response');
+  // Infer budget
+  let budget = 15000;
+  if (/enterprise|large|complex|multiple/.test(lower)) budget = 75000;
+  else if (/simple|basic|small/.test(lower)) budget = 8000;
 
-    const parsed = safeJsonParse(text);
-    if (parsed && parsed.projectOverview) {
-      // Validate it didn't just echo back the input
-      const overviewIsSameAsInput = parsed.projectOverview.trim() === ideaText.trim();
-      if (overviewIsSameAsInput) {
-        throw new Error('AI returned echo content — retrying not possible');
-      }
-      return {
-        projectOverview: parsed.projectOverview,
-        technicalScope: parsed.technicalScope || '',
-        goalsAndRequirements: parsed.goalsAndRequirements || '',
-        suggestedBudgetRange: parsed.suggestedBudgetRange || '',
-        suggestedTimeline: parsed.suggestedTimeline || '',
-      };
-    }
-    throw new Error('AI response could not be parsed as valid JSON with required fields');
-  } catch (err) {
-    console.error('AI generateRfpFromIdea Error:', err);
-    throw new Error('AI failed to generate RFP draft. Please try again or fill fields manually.');
-  }
+  // Infer duration
+  let duration = '1-3months';
+  if (/quick|fast|urgent|asap/.test(lower)) duration = '1-4weeks';
+  else if (/large|enterprise|complex/.test(lower)) duration = '3+months';
+
+  return { title, description, skills, budget, duration };
 }

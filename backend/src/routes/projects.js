@@ -128,12 +128,18 @@ router.post(
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
       const { ideaText } = req.body;
+      // generateTitleAndDescription never throws — always returns a valid object
       const details = await generateTitleAndDescription(ideaText);
       
       res.json(details);
     } catch (err) {
-      console.error('Error generating project details:', err);
-      res.status(500).json({ message: err.message });
+      console.error('Error generating project details (fallback used):', err);
+      // Safety net fallback
+      const words = String(req.body?.ideaText || '').trim().split(/\s+/);
+      res.json({
+        title: words.slice(0, 6).map((w) => w[0]?.toUpperCase() + w.slice(1)).join(' ') || 'Custom Project',
+        description: String(req.body?.ideaText || ''),
+      });
     }
   }
 );
@@ -152,12 +158,22 @@ router.post(
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
       const { ideaText, aiInstructions } = req.body;
+      // generateFullProjectDetails never throws — always returns a valid object
       const details = await generateFullProjectDetails(ideaText, aiInstructions);
       
       res.json(details);
     } catch (err) {
-      console.error('Error generating full project details:', err);
-      res.status(500).json({ message: err.message });
+      console.error('Error generating full project details (fallback used):', err);
+      // Safety net fallback
+      const idea = String(req.body?.ideaText || '').trim();
+      const words = idea.split(/\s+/);
+      res.json({
+        title: words.slice(0, 6).map((w) => w[0]?.toUpperCase() + w.slice(1)).join(' ') || 'Custom Development Project',
+        description: idea || 'Project details to be provided.',
+        skills: ['Software Development', 'Web Development'],
+        budget: 15000,
+        duration: '1-3months',
+      });
     }
   }
 );
