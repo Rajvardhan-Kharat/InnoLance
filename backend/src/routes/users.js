@@ -1,9 +1,33 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import User from '../models/User.js';
 import Review from '../models/Review.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// ─── Avatar upload setup ──────────────────────────────────────────────────────
+const avatarDir = path.join(process.cwd(), 'uploads', 'avatars');
+if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
+
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, avatarDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '.jpg');
+    cb(null, `avatar-${req.user._id}-${Date.now()}${ext}`);
+  },
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) return cb(null, true);
+    cb(new Error('Only image files are allowed'));
+  },
+});
 
 router.get('/me', protect, async (req, res) => {
   res.json({ user: req.user });
@@ -18,6 +42,22 @@ router.patch('/me', protect, async (req, res) => {
     const updates = {};
     Object.keys(req.body).forEach((k) => { if (allowed.includes(k)) updates[k] = req.body[k]; });
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── Avatar upload ────────────────────────────────────────────────────────────
+router.post('/me/avatar', protect, avatarUpload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { avatar: avatarUrl },
+      { new: true }
+    ).select('-password');
     res.json({ user });
   } catch (err) {
     res.status(500).json({ message: err.message });

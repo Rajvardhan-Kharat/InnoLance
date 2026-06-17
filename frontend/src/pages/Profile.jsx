@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { SKILLS } from '../utils/constants';
@@ -9,6 +9,16 @@ export default function Profile() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Avatar state
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarMsg, setAvatarMsg] = useState('');
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef();
+
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 
   useEffect(() => {
     if (user) {
@@ -23,8 +33,53 @@ export default function Profile() {
         hourlyRate: user.hourlyRate || '',
         availability: user.availability || 'as-needed',
       });
+      setAvatarPreview(user.avatar ? resolveAvatar(user.avatar) : null);
     }
   }, [user]);
+
+  function resolveAvatar(url) {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    const base = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/api\/?$/, '');
+    return `${base}${url}`;
+  }
+
+  const handleAvatarChange = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setAvatarMsg('Please select an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarMsg('Image must be smaller than 5 MB.');
+      return;
+    }
+    setAvatarFile(file);
+    setAvatarMsg('');
+    const reader = new FileReader();
+    reader.onload = (e) => setAvatarPreview(e.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handleAvatarUpload = async () => {
+    if (!avatarFile) return;
+    setAvatarUploading(true);
+    setAvatarMsg('');
+    try {
+      const formData = new FormData();
+      formData.append('avatar', avatarFile);
+      await api.post('/users/me/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await refreshUser();
+      setAvatarFile(null);
+      setAvatarMsg('Profile picture updated!');
+    } catch (err) {
+      setAvatarMsg(err.response?.data?.message || 'Upload failed');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const toggleSkill = (skill) => {
     setForm((f) => ({
@@ -51,13 +106,92 @@ export default function Profile() {
     }
   };
 
+  const getInitials = () => {
+    const first = (user?.firstName || '')[0] || '';
+    const last = (user?.lastName || '')[0] || '';
+    return (first + last).toUpperCase() || (user?.email || 'U')[0].toUpperCase();
+  };
+
   if (!user) return null;
 
   return (
     <div className="profile-page">
       <h1>Profile settings</h1>
       <p className="page-sub">Update your profile. This is visible to others.</p>
+
+      {/* ── Avatar Section ── */}
+      <section className="avatar-section">
+        <h2 className="avatar-section-title">Profile picture</h2>
+        <div className="avatar-row">
+          {/* Avatar preview */}
+          <div
+            className={`avatar-dropzone ${dragOver ? 'drag-over' : ''}`}
+            onClick={() => fileInputRef.current.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              handleAvatarChange(e.dataTransfer.files[0]);
+            }}
+          >
+            {avatarPreview ? (
+              <img src={avatarPreview} alt="Avatar preview" className="avatar-preview-img" />
+            ) : (
+              <div className="avatar-initials">{getInitials()}</div>
+            )}
+            <div className="avatar-overlay">
+              <span className="avatar-overlay-icon">📷</span>
+              <span className="avatar-overlay-text">Change photo</span>
+            </div>
+          </div>
+
+          {/* Info & actions */}
+          <div className="avatar-info">
+            <p className="avatar-name">
+              {user.firstName || user.email?.split('@')[0]} {user.lastName || ''}
+            </p>
+            <p className="avatar-email">{user.email}</p>
+            <p className="avatar-hint">JPG, PNG or GIF · Max 5 MB<br />Click the photo or drag &amp; drop to change</p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => handleAvatarChange(e.target.files[0])}
+            />
+
+            <div className="avatar-actions">
+              <button
+                type="button"
+                className="btn btn-ghost avatar-pick-btn"
+                onClick={() => fileInputRef.current.click()}
+              >
+                Choose photo
+              </button>
+              {avatarFile && (
+                <button
+                  type="button"
+                  className="btn btn-primary avatar-save-btn"
+                  onClick={handleAvatarUpload}
+                  disabled={avatarUploading}
+                >
+                  {avatarUploading ? 'Uploading...' : 'Save photo'}
+                </button>
+              )}
+            </div>
+            {avatarMsg && (
+              <p className={`avatar-msg ${avatarMsg.includes('updated') ? 'success' : 'error'}`}>
+                {avatarMsg}
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+
       {message && <div className={`profile-msg ${message.includes('updated') ? 'success' : 'error'}`}>{message}</div>}
+
       <form onSubmit={handleSubmit} className="profile-form">
         <section>
           <h2>Basic info</h2>
