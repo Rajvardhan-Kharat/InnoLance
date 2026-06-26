@@ -211,6 +211,15 @@ router.post(
         ? Number(budgetNumbers[budgetNumbers.length - 1].replace(/,/g, ''))
         : 0;
 
+      let suggestedTasks = [];
+      if (req.body.suggestedTasks) {
+        try {
+          suggestedTasks = JSON.parse(req.body.suggestedTasks);
+        } catch (e) {
+          console.error('Failed to parse suggestedTasks:', e);
+        }
+      }
+
       const project = await EnterpriseProject.create({
         clientUser: req.user._id,
         clientReference,
@@ -223,6 +232,7 @@ router.post(
         budgetRange,
         startDate: startDate ? new Date(startDate) : undefined,
         finalDeadline: finalDeadline ? new Date(finalDeadline) : undefined,
+        suggestedTasks: suggestedTasks.length > 0 ? suggestedTasks : undefined,
       });
 
       try {
@@ -265,6 +275,13 @@ router.get(
   async (req, res) => {
     try {
       const projects = await EnterpriseProject.find({ clientUser: req.user._id })
+        .populate({
+          path: 'microJobs',
+          populate: [
+            { path: 'marketplaceProject' },
+            { path: 'hiredUser', select: 'firstName lastName email' }
+          ]
+        })
         .sort({ updatedAt: -1 })
         .lean();
       return res.json({ projects });

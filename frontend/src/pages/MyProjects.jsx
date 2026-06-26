@@ -8,6 +8,11 @@ export default function MyProjects() {
   const { user } = useAuth();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedRfps, setExpandedRfps] = useState({});
+
+  const toggleRfp = (id) => {
+    setExpandedRfps((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -19,8 +24,23 @@ export default function MyProjects() {
             api.get('/enterprise-rfp/my').catch(() => ({ data: { projects: [] } }))
           ]);
           if (!mounted) return;
-          const regular = (regularRes.data?.projects || []).map(p => ({ ...p, isEnterprise: false }));
-          const enterprise = (enterpriseRes.data?.projects || []).map(p => ({ ...p, isEnterprise: true, title: p.clientReference || 'Enterprise RFP', budgetType: 'Enterprise', budget: p.overallTotalBudget, description: p.originalRfpText?.substring(0, 100) }));
+          const enterpriseData = enterpriseRes.data?.projects || [];
+          const microJobProjectIds = new Set();
+          enterpriseData.forEach(ep => {
+            if (ep.microJobs) {
+              ep.microJobs.forEach(mj => {
+                if (mj.marketplaceProject) {
+                  microJobProjectIds.add(typeof mj.marketplaceProject === 'object' ? mj.marketplaceProject._id : mj.marketplaceProject);
+                }
+              });
+            }
+          });
+
+          const regular = (regularRes.data?.projects || [])
+            .filter(p => !microJobProjectIds.has(p._id))
+            .map(p => ({ ...p, isEnterprise: false }));
+
+          const enterprise = enterpriseData.map(p => ({ ...p, isEnterprise: true, title: p.clientReference || 'Enterprise RFP', budgetType: 'Enterprise', budget: p.overallTotalBudget, description: p.originalRfpText?.substring(0, 100) }));
           
           const combined = [...regular, ...enterprise].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
           setProjects(combined);
@@ -111,11 +131,52 @@ export default function MyProjects() {
                 )}
               </div>
               
-              {p.status === 'in_progress' && (user?.role === 'client' || user?.role === 'admin') && (
+              
+              {p.status === 'in_progress' && !p.isEnterprise && (user?.role === 'client' || user?.role === 'admin') && (
                 <div className="card-actions">
                   <button type="button" className="btn btn-primary btn-block" onClick={() => markComplete(p._id)}>
                     Mark complete
                   </button>
+                </div>
+              )}
+
+              {p.isEnterprise && p.microJobs && p.microJobs.length > 0 && (
+                <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                  <button 
+                    onClick={() => toggleRfp(p._id)} 
+                    style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 600, padding: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    {expandedRfps[p._id] ? '▼ Hide Tasks' : '▶ View Tasks'} ({p.microJobs.length})
+                  </button>
+                  
+                  {expandedRfps[p._id] && (
+                    <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {p.microJobs.map((mj) => {
+                        const mp = mj.marketplaceProject;
+                        if (!mp) return null;
+                        return (
+                          <div key={mj._id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.75rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '0.95rem' }}>
+                                <Link to={`/projects/${typeof mp === 'object' ? mp._id : mp}`}>{mj.title}</Link>
+                              </h4>
+                              <span className={`status-badge ${mj.status.toLowerCase().replace(' ', '_')}`} style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
+                                {mj.status.toUpperCase()}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              Budget: ₹{mj.allocatedBudget}
+                            </div>
+                            {mj.hiredUser && (
+                              <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: 'var(--primary)' }}>
+                                ↳ Assigned to: {mj.hiredUser.firstName} {mj.hiredUser.lastName}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

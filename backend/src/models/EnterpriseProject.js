@@ -39,6 +39,16 @@ const enterpriseProjectSchema = new mongoose.Schema(
     // MicroJobs are the admin-created JD chunks for hiring.
     microJobs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MicroJob' }],
 
+    // Tasks suggested by the client during RFP submission
+    suggestedTasks: [
+      {
+        title: { type: String, trim: true },
+        description: { type: String, trim: true },
+        budget: { type: Number, min: 0 },
+        skills: [{ type: String }],
+      }
+    ],
+
     // Email Message-ID (or stable hash) from intake — prevents duplicate projects on IMAP re-processing / restarts.
     intakeMessageId: { type: String, trim: true, sparse: true, unique: true },
   },

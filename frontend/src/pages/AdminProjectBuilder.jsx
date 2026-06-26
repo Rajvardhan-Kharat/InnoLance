@@ -128,13 +128,35 @@ export default function AdminProjectBuilder() {
       });
 
     // Restore draft from localStorage (only for THIS project)
+    let restored = false;
     try {
       const raw = localStorage.getItem(`rfp_builder_draft_${projectId}`);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) setTasks(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTasks(parsed);
+          restored = true;
+        }
       }
     } catch { /* ignore */ }
+
+    // If no draft, try to use client's suggested tasks
+    if (!restored) {
+      api.get(`/admin/enterprise-projects/${projectId}`)
+        .then(({ data }) => {
+          const proj = data.project || data.enterpriseProject || data;
+          if (proj.suggestedTasks && proj.suggestedTasks.length > 0) {
+            setTasks(proj.suggestedTasks.map((st) => ({
+              ...emptyTask(),
+              title: st.title || '',
+              description: st.description || '',
+              budget: st.budget ? String(st.budget) : '',
+              skills: st.skills || [],
+            })));
+          }
+        })
+        .catch(() => {});
+    }
 
     return () => { mounted = false; };
   }, [projectId]);

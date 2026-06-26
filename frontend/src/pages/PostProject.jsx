@@ -490,6 +490,7 @@ function EnterpriseRfpForm({ onBack }) {
     startDate: '',
     finalDeadline: '',
     budgetRange: '',
+    suggestedTasks: [],
   });
 
   const handleFileChange = (file) => {
@@ -552,6 +553,7 @@ function EnterpriseRfpForm({ onBack }) {
       if (form.finalDeadline) formData.append('finalDeadline', form.finalDeadline);
       if (form.budgetRange) formData.append('budgetRange', form.budgetRange);
       if (form.companyName) formData.append('companyName', form.companyName);
+      if (form.suggestedTasks && form.suggestedTasks.length > 0) formData.append('suggestedTasks', JSON.stringify(form.suggestedTasks));
       if (uploadedFile) formData.append('rfpDocument', uploadedFile);
 
       await api.post('/enterprise-rfp/direct-submit', formData, {
@@ -719,6 +721,72 @@ function EnterpriseRfpForm({ onBack }) {
           <option value="">Select a budget range...</option>
           {ENTERPRISE_BUDGET_RANGES.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
+
+        {/* Suggested Tasks */}
+        <label>Project Tasks (Optional)</label>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '-12px 0 8px' }}>
+          Pre-define the MicroJobs (tasks) you want this RFP broken into.
+        </p>
+        <div className="suggested-tasks-container">
+          {form.suggestedTasks.map((task, index) => (
+            <div key={index} style={{ border: '1px solid var(--border)', padding: 12, borderRadius: 8, marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <strong>Task {index + 1}</strong>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    const newTasks = [...form.suggestedTasks];
+                    newTasks.splice(index, 1);
+                    setForm({ ...form, suggestedTasks: newTasks });
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+              <input
+                type="text"
+                placeholder="Task Title"
+                value={task.title}
+                onChange={(e) => {
+                  const newTasks = [...form.suggestedTasks];
+                  newTasks[index].title = e.target.value;
+                  setForm({ ...form, suggestedTasks: newTasks });
+                }}
+                style={{ marginBottom: 8 }}
+              />
+              <textarea
+                placeholder="Task Description"
+                value={task.description}
+                onChange={(e) => {
+                  const newTasks = [...form.suggestedTasks];
+                  newTasks[index].description = e.target.value;
+                  setForm({ ...form, suggestedTasks: newTasks });
+                }}
+                style={{ marginBottom: 8 }}
+                rows={2}
+              />
+              <input
+                type="number"
+                placeholder="Allocated Budget (INR)"
+                value={task.budget}
+                onChange={(e) => {
+                  const newTasks = [...form.suggestedTasks];
+                  newTasks[index].budget = Number(e.target.value);
+                  setForm({ ...form, suggestedTasks: newTasks });
+                }}
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setForm({ ...form, suggestedTasks: [...form.suggestedTasks, { title: '', description: '', budget: '', skills: [] }] })}
+          >
+            + Add Task
+          </button>
+        </div>
+        <br />
 
         {/* File Upload */}
         <label>Upload PRD / Architectural Diagrams (optional)</label>
