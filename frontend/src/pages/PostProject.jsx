@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { CATEGORIES, DURATIONS, SKILLS } from '../utils/constants';
+import { CATEGORIES, DURATIONS, SKILLS, CATEGORY_SKILLS } from '../utils/constants';
 import AssessmentBuilder from '../components/AssessmentBuilder';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -74,6 +74,7 @@ function RegularProjectForm({ onBack }) {
     title: '',
     description: '',
     category: CATEGORIES[0],
+    otherCategory: '',
     skills: [],
     budgetType: 'fixed',
     budget: '',
@@ -83,6 +84,9 @@ function RegularProjectForm({ onBack }) {
     duration: '1-4weeks',
     deadline: '',
   });
+  const [skillSearch, setSkillSearch] = useState('');
+  const [newSkill, setNewSkill] = useState('');
+  const [customSkills, setCustomSkills] = useState([]);
 
   const [assessmentEnabled, setAssessmentEnabled] = useState(false);
   const [assessmentSeed, setAssessmentSeed] = useState('');
@@ -156,7 +160,7 @@ function RegularProjectForm({ onBack }) {
       const payload = {
         title: form.title,
         description: form.description,
-        category: form.category,
+        category: form.category === 'Other' ? form.otherCategory : form.category,
         skills: form.skills,
         budgetType: form.budgetType,
         duration: form.duration,
@@ -275,23 +279,86 @@ function RegularProjectForm({ onBack }) {
         <select
           id="pp-category"
           value={form.category}
-          onChange={(e) => setForm({ ...form, category: e.target.value })}
+          onChange={(e) => {
+            setForm({ ...form, category: e.target.value, skills: [] });
+            setCustomSkills([]);
+          }}
         >
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        
+        {form.category === 'Other' && (
+          <>
+            <label htmlFor="pp-category-other">Please specify category *</label>
+            <input
+              id="pp-category-other"
+              value={form.otherCategory}
+              onChange={(e) => setForm({ ...form, otherCategory: e.target.value })}
+              placeholder="e.g. 3D Printing"
+              required
+            />
+          </>
+        )}
 
         <label>Required Skills (optional)</label>
+        <div style={{ marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder="Search skills..."
+            value={skillSearch}
+            onChange={(e) => setSkillSearch(e.target.value)}
+            style={{ marginBottom: 8, padding: '8px 12px', width: '100%', border: '1px solid var(--border)', borderRadius: 6 }}
+          />
+        </div>
         <div className="skills-chosen">
-          {SKILLS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={`skill-btn ${form.skills.includes(s) ? 'active' : ''}`}
-              onClick={() => toggleSkill(s)}
-            >
-              {s}
-            </button>
-          ))}
+          {(() => {
+            const baseSkills = CATEGORY_SKILLS[form.category] || CATEGORY_SKILLS['Other'];
+            const allAvailableSkills = [...new Set([...baseSkills, ...customSkills])];
+            const filteredSkills = allAvailableSkills.filter(s => s.toLowerCase().includes(skillSearch.toLowerCase()));
+            return filteredSkills.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`skill-btn ${form.skills.includes(s) ? 'active' : ''}`}
+                onClick={() => toggleSkill(s)}
+              >
+                {s}
+              </button>
+            ));
+          })()}
+        </div>
+        
+        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+          <input
+            type="text"
+            placeholder="Add new skill..."
+            value={newSkill}
+            onChange={(e) => setNewSkill(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (newSkill.trim() && !customSkills.includes(newSkill.trim())) {
+                  setCustomSkills([...customSkills, newSkill.trim()]);
+                  toggleSkill(newSkill.trim());
+                  setNewSkill('');
+                }
+              }
+            }}
+            style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6 }}
+          />
+          <button 
+            type="button" 
+            className="btn btn-secondary"
+            onClick={() => {
+              if (newSkill.trim() && !customSkills.includes(newSkill.trim())) {
+                setCustomSkills([...customSkills, newSkill.trim()]);
+                toggleSkill(newSkill.trim());
+                setNewSkill('');
+              }
+            }}
+          >
+            Add
+          </button>
         </div>
 
         {/* Assessment */}

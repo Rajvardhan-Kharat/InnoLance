@@ -10,11 +10,34 @@ export default function MyProjects() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/projects/my').then(({ data }) => {
-      setProjects(data.projects);
-      setLoading(false);
-    });
-  }, []);
+    let mounted = true;
+    const fetchProjects = async () => {
+      try {
+        if (user?.role === 'client' || user?.role === 'admin') {
+          const [regularRes, enterpriseRes] = await Promise.all([
+            api.get('/projects/my'),
+            api.get('/enterprise-rfp/my').catch(() => ({ data: { projects: [] } }))
+          ]);
+          if (!mounted) return;
+          const regular = (regularRes.data?.projects || []).map(p => ({ ...p, isEnterprise: false }));
+          const enterprise = (enterpriseRes.data?.projects || []).map(p => ({ ...p, isEnterprise: true, title: p.clientReference || 'Enterprise RFP', budgetType: 'Enterprise', budget: p.overallTotalBudget, description: p.originalRfpText?.substring(0, 100) }));
+          
+          const combined = [...regular, ...enterprise].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+          setProjects(combined);
+        } else {
+          const { data } = await api.get('/projects/my');
+          if (!mounted) return;
+          setProjects(data.projects || []);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    fetchProjects();
+    return () => { mounted = false; };
+  }, [user]);
 
   const markComplete = async (projectId) => {
     if (!confirm('Mark this project as completed?')) return;
@@ -56,8 +79,14 @@ export default function MyProjects() {
           {projects.map((p) => (
             <div className={`project-card status-${p.status}`} key={p._id}>
               <div className="card-top">
-                <h3><Link to={`/projects/${p._id}`}>{p.title}</Link></h3>
-                <span className={`status-badge ${p.status}`}>
+                <h3>
+                  {p.isEnterprise ? (
+                    <span style={{ color: 'var(--primary)' }}>🏢 {p.title}</span>
+                  ) : (
+                    <Link to={`/projects/${p._id}`}>{p.title}</Link>
+                  )}
+                </h3>
+                <span className={`status-badge ${p.status.toLowerCase().replace(' ', '_')}`}>
                   {p.status.replace('_', ' ').toUpperCase()}
                 </span>
               </div>

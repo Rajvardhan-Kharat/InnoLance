@@ -258,6 +258,22 @@ router.post(
   }
 );
 
+// ─── Client My Enterprise RFPs ───────────────────────────────────────────────
+router.get(
+  '/my',
+  protect,
+  async (req, res) => {
+    try {
+      const projects = await EnterpriseProject.find({ clientUser: req.user._id })
+        .sort({ updatedAt: -1 })
+        .lean();
+      return res.json({ projects });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  }
+);
+
 // ─── AI: Generate draft RFP from idea text ───────────────────────────────────
 router.post(
   '/generate-rfp-draft',

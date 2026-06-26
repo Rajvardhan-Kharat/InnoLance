@@ -5,6 +5,8 @@ import Project from '../models/Project.js';
 import MicroJob from '../models/MicroJob.js';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
+import Conversation from '../models/Conversation.js';
+import EnterpriseProject from '../models/EnterpriseProject.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import multer from 'multer';
@@ -349,6 +351,34 @@ router.patch('/:id/accept', protect, restrictTo('client', 'admin'), async (req, 
         linkedMicro.hiredUser = proposal.freelancer;
         if (linkedMicro.status === 'Open') linkedMicro.status = 'Assigned';
         await linkedMicro.save();
+        
+        // Auto-create/update Group Chat for Enterprise RFP
+        const ep = await EnterpriseProject.findById(linkedMicro.parentProject);
+        if (ep) {
+          const groupName = `Enterprise RFP Team - ${ep.clientReference || ep._id.toString().substring(0, 6)}`;
+          let groupConvo = await Conversation.findOne({ project: ep._id, isGroup: true });
+          
+          if (!groupConvo) {
+            groupConvo = await Conversation.create({
+              isGroup: true,
+              name: groupName,
+              participants: [req.user._id, proposal.freelancer],
+              admins: [req.user._id],
+              project: ep._id
+            });
+          } else {
+            if (!groupConvo.participants.includes(req.user._id)) {
+              groupConvo.participants.push(req.user._id);
+            }
+            if (!groupConvo.admins.includes(req.user._id)) {
+              groupConvo.admins.push(req.user._id);
+            }
+            if (!groupConvo.participants.includes(proposal.freelancer)) {
+              groupConvo.participants.push(proposal.freelancer);
+            }
+            await groupConvo.save();
+          }
+        }
       }
 
       await Proposal.updateMany(

@@ -72,12 +72,13 @@ export default function AdminProjectBuilder() {
   const [tasks, setTasks]             = useState([emptyTask()]);
   const [editableBudget, setEditableBudget] = useState(0);
   const [copyQuizFromFirst, setCopyQuizFromFirst] = useState(false);
+  const [platformMarginPct, setPlatformMarginPct] = useState(15);
   const [platformMargin, setPlatformMargin]       = useState(0);
   const [freelancerBudget, setFreelancerBudget]   = useState(0);
 
   const totalAllocated = useMemo(() => sumBudgets(tasks), [tasks]);
   const totalBudget    = Number(editableBudget) || 0;
-  const effectiveFreelancerBudget = freelancerBudget > 0 ? freelancerBudget : Math.round(totalBudget * 0.85);
+  const effectiveFreelancerBudget = totalBudget > 0 ? Math.round(totalBudget * (1 - platformMarginPct / 100)) : 0;
   const overBudget     = Number.isFinite(totalBudget) && totalAllocated > effectiveFreelancerBudget;
   const allocPercent   = effectiveFreelancerBudget > 0 ? Math.min(100, Math.round((totalAllocated / effectiveFreelancerBudget) * 100)) : 0;
 
@@ -113,8 +114,8 @@ export default function AdminProjectBuilder() {
         // Recalculate margin from stored budget
         const tb = Number(proj.overallTotalBudget) || 0;
         if (tb > 0) {
-          setFreelancerBudget(Math.round(tb * 0.85));
-          setPlatformMargin(Math.round(tb * 0.15));
+          setFreelancerBudget(Math.round(tb * (1 - platformMarginPct / 100)));
+          setPlatformMargin(Math.round(tb * (platformMarginPct / 100)));
         }
       })
       .catch((err) => {
@@ -270,7 +271,7 @@ export default function AdminProjectBuilder() {
     );
   }
 
-  const clientMarginPct = totalBudget > 0 ? Math.round(((totalBudget - effectiveFreelancerBudget) / totalBudget) * 100) : 15;
+  const clientMarginPct = platformMarginPct;
 
   return (
     <div className="admin-project-builder">
@@ -292,8 +293,8 @@ export default function AdminProjectBuilder() {
                 onChange={(e) => {
                   const v = Number(e.target.value) || 0;
                   setEditableBudget(v);
-                  setFreelancerBudget(Math.round(v * 0.85));
-                  setPlatformMargin(Math.round(v * 0.15));
+                  setFreelancerBudget(Math.round(v * (1 - platformMarginPct / 100)));
+                  setPlatformMargin(Math.round(v * (platformMarginPct / 100)));
                 }}
                 className="budget-input-inline"
                 style={{ width: '110px', padding: '2px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
@@ -321,8 +322,24 @@ export default function AdminProjectBuilder() {
           <div className="budget-pill" style={{ background: '#ede9fe', color: '#6d28d9', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: '0.9rem' }}>
             💰 Client Budget: {fmtINR(totalBudget)}
           </div>
-          <div className="budget-pill" style={{ background: '#fef3c7', color: '#92400e', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: '0.9rem' }}>
-            🏦 Platform Margin ({clientMarginPct}%): {fmtINR(totalBudget - effectiveFreelancerBudget)}
+          <div className="budget-pill" style={{ background: '#fef3c7', color: '#92400e', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+            🏦 Platform Margin
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={platformMarginPct}
+              onChange={(e) => {
+                const v = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                setPlatformMarginPct(v);
+                if (totalBudget > 0) {
+                  setFreelancerBudget(Math.round(totalBudget * (1 - v / 100)));
+                  setPlatformMargin(Math.round(totalBudget * (v / 100)));
+                }
+              }}
+              style={{ width: '60px', padding: '2px 6px', border: '1px solid #d97706', borderRadius: '4px', background: 'transparent', color: '#92400e', fontWeight: 700 }}
+            />
+            %: {fmtINR(totalBudget - effectiveFreelancerBudget)}
           </div>
           <div className="budget-pill" style={{ background: '#d1fae5', color: '#065f46', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: '0.9rem' }}>
             👷 Freelancer Pool: {fmtINR(effectiveFreelancerBudget)}
